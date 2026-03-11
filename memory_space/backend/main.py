@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import LINK_OPTIONS
+from config import COLOR_CONFIG, LINK_OPTIONS
 from db import execute, fetch_all, fetch_one, init_db
 from schemas import MindMemoryIn, MusicMemoryIn
 
@@ -45,7 +45,6 @@ PROVIDER_ALIASES.update(
         'apple_music': 'apple_music',
         'netease music': 'netease_music',
         'netease_music': 'netease_music',
-        '网易云音乐': 'netease_music',
         'qq music': 'qq_music',
         'qq_music': 'qq_music',
     }
@@ -75,6 +74,14 @@ def mind_page() -> FileResponse:
 @app.get('/api/config/link-options')
 def list_link_options() -> dict[str, list[dict[str, object]]]:
     return {'items': LINK_OPTIONS}
+
+
+@app.get('/api/config/ui')
+def get_ui_config() -> dict[str, object]:
+    return {
+        'link_options': LINK_OPTIONS,
+        'color_config': COLOR_CONFIG,
+    }
 
 
 def normalise_link_entries(raw_links: object) -> list[dict[str, str]]:

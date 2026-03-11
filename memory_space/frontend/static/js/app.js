@@ -1,6 +1,37 @@
 const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
 
+const fallbackColorConfig = {
+  default_music: '#6d5efc',
+  default_mind: '#18a999',
+  allow_custom: true,
+  forbidden_colors: ['#ffffff', '#fff'],
+  presets: [
+    { name: 'Indigo', value: '#6d5efc' },
+    { name: 'Teal', value: '#18a999' },
+  ],
+};
+
+const searchFieldOptions = pageType === 'music'
+  ? [
+      { key: 'title', label: 'Title' },
+      { key: 'artist', label: 'Artist' },
+      { key: 'tags', label: 'Tags' },
+      { key: 'short_desc', label: 'Short Desc' },
+      { key: 'long_desc', label: 'Long Desc' },
+      { key: 'links', label: 'Links' },
+      { key: 'memory_time', label: 'Time' },
+    ]
+  : [
+      { key: 'title', label: 'Title' },
+      { key: 'tags', label: 'Tags' },
+      { key: 'short_desc', label: 'Short Desc' },
+      { key: 'long_desc', label: 'Long Desc' },
+      { key: 'memory_time', label: 'Time' },
+    ];
+
+const defaultSearchFields = pageType === 'music' ? ['title', 'artist'] : ['title'];
+
 const state = {
   items: [],
   filteredItems: [],
@@ -8,6 +39,8 @@ const state = {
   mode: 'create',
   pendingDeleteId: null,
   linkOptions: [],
+  colorConfig: { ...fallbackColorConfig },
+  searchFields: new Set(defaultSearchFields),
 };
 
 const detailPanel = document.getElementById('detailPanel');
@@ -21,6 +54,7 @@ const deleteModalOverlay = document.getElementById('deleteModalOverlay');
 const formModalTitle = document.getElementById('formModalTitle');
 const memoryForm = document.getElementById('memoryForm');
 const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+const toolbar = document.querySelector('.toolbar');
 
 const escapeHtml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -76,25 +110,62 @@ function getLinkOption(provider) {
   return state.linkOptions.find(item => item.provider === provider);
 }
 
-function itemSearchText(item) {
-  const linkText = (item.links || []).map(link => {
-    const opt = getLinkOption(link.provider);
-    return `${opt?.label || link.provider} ${link.url}`;
-  }).join(' ');
+function getDefaultColor() {
+  return pageType === 'music' ? state.colorConfig.default_music : state.colorConfig.default_mind;
+}
 
-  const parts = [
-    item.title,
-    item.artist,
-    item.short_desc,
-    item.long_desc,
-    (item.tags || []).join(' '),
-    linkText,
-  ];
+function normaliseHexColor(raw) {
+  const value = (raw || '').toString().trim().toLowerCase();
+  if (!value.startsWith('#')) return '';
+  if (/^#[0-9a-f]{3}$/i.test(value)) {
+    return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`.toLowerCase();
+  }
+  if (/^#[0-9a-f]{6}$/i.test(value)) {
+    return value.toLowerCase();
+  }
+  return '';
+}
+
+function isForbiddenColor(value) {
+  const normalized = normaliseHexColor(value);
+  if (!normalized) return true;
+  const forbidden = (state.colorConfig.forbidden_colors || []).map(item => normaliseHexColor(item));
+  return forbidden.includes(normalized);
+}
+
+function itemSearchText(item) {
+  const fields = state.searchFields.size ? state.searchFields : new Set(defaultSearchFields);
+  const parts = [];
+  if (fields.has('title')) parts.push(item.title || '');
+  if (fields.has('artist')) parts.push(item.artist || '');
+  if (fields.has('tags')) parts.push((item.tags || []).join(' '));
+  if (fields.has('short_desc')) parts.push(item.short_desc || '');
+  if (fields.has('long_desc')) parts.push(item.long_desc || '');
+  if (fields.has('memory_time')) parts.push(item.memory_time || '');
+  if (fields.has('links')) {
+    parts.push((item.links || []).map(link => {
+      const opt = getLinkOption(link.provider);
+      return `${opt?.label || link.provider} ${link.url}`;
+    }).join(' '));
+  }
   return parts.join(' ').toLowerCase();
 }
 
 function renderEmptyState(message = 'Empty') {
   memoryGrid.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function renderCardTagSummary(tags) {
+  const cleanTags = (tags || []).filter(Boolean);
+  if (!cleanTags.length) return '';
+  const shown = cleanTags.slice(0, 3);
+  const hasMore = cleanTags.length > 3;
+  return `
+    <div class="card-tag-list">
+      ${shown.map(tag => `<span class="card-tag-pill">#${escapeHtml(tag)}</span>`).join('')}
+      ${hasMore ? '<span class="card-tag-more">...</span>' : ''}
+    </div>
+  `;
 }
 
 function renderCards() {
@@ -109,10 +180,11 @@ function renderCards() {
       ? `<p class="card-subtitle">${escapeHtml(textOrEmpty(item.artist))}</p>`
       : '';
     return `
-      <article class="card ${isActive ? 'active' : ''}" data-id="${item.id}" style="--card-accent:${escapeHtml(item.color || '#6d5efc')}">
+      <article class="card ${isActive ? 'active' : ''}" data-id="${item.id}" style="--card-accent:${escapeHtml(item.color || getDefaultColor())}">
         <h3 class="card-title">${escapeHtml(textOrEmpty(item.title))}</h3>
         ${subtitle}
         <p class="card-desc">${escapeHtml(textOrEmpty(item.short_desc || item.long_desc))}</p>
+        ${renderCardTagSummary(item.tags)}
         <div class="card-time">${escapeHtml(textOrEmpty(item.memory_time))}</div>
       </article>
     `;
@@ -123,6 +195,10 @@ function renderCards() {
       const id = Number(card.dataset.id);
       const item = state.items.find(entry => entry.id === id);
       if (!item) return;
+      if (state.selectedId === id && detailPanel.getAttribute('aria-hidden') === 'false') {
+        closeDetail();
+        return;
+      }
       state.selectedId = id;
       renderCards();
       openDetail(item);
@@ -210,6 +286,48 @@ function buildLinkRowHtml(link = null) {
   `;
 }
 
+function buildColorPresetOptions(currentColor) {
+  const presets = state.colorConfig.presets || [];
+  const normalizedCurrent = normaliseHexColor(currentColor || getDefaultColor());
+  const hasPreset = presets.some(item => normaliseHexColor(item.value) === normalizedCurrent);
+  const firstPreset = normaliseHexColor(presets[0]?.value || getDefaultColor()) || getDefaultColor();
+  const selectedValue = hasPreset
+    ? normalizedCurrent
+    : (state.colorConfig.allow_custom ? '__custom__' : firstPreset);
+
+  const presetOptions = presets.map(item => {
+    const value = normaliseHexColor(item.value);
+    return `<option value="${escapeHtml(value)}" ${value === selectedValue ? 'selected' : ''}>${escapeHtml(item.name)} (${escapeHtml(value)})</option>`;
+  }).join('');
+
+  const customOption = state.colorConfig.allow_custom
+    ? `<option value="__custom__" ${selectedValue === '__custom__' ? 'selected' : ''}>Custom</option>`
+    : '';
+  return { presetOptions, customOption, selectedValue, normalizedCurrent };
+}
+
+function getColorFieldHtml(currentColor) {
+  const { presetOptions, customOption, selectedValue, normalizedCurrent } = buildColorPresetOptions(currentColor);
+  const customHidden = selectedValue === '__custom__' ? '' : 'hidden';
+  return `
+    <div class="field">
+      <label for="color_preset">Card Color</label>
+      <select id="color_preset" name="color_preset" class="color-preset-select">
+        ${presetOptions}
+        ${customOption}
+      </select>
+      ${state.colorConfig.allow_custom ? `
+      <div class="custom-color-wrap" id="customColorWrap" ${customHidden}>
+        <input id="custom_color_picker" name="custom_color_picker" type="color" value="${escapeHtml(normalizedCurrent || getDefaultColor())}" />
+        <input id="custom_color_hex" name="custom_color_hex" type="text" value="${escapeHtml(normalizedCurrent || getDefaultColor())}" placeholder="#RRGGBB or #RGB" />
+      </div>
+      ` : ''}
+      <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(normalizedCurrent || getDefaultColor())}"></div>
+      <span class="hint-text">15 presets + custom hex. White is disabled.</span>
+    </div>
+  `;
+}
+
 function getFormHtml(item = null) {
   const data = item || {
     icon_url: '',
@@ -217,7 +335,7 @@ function getFormHtml(item = null) {
     artist: '',
     memory_time: getCurrentTimeInputValue(),
     tags: [],
-    color: pageType === 'music' ? '#6d5efc' : '#18a999',
+    color: getDefaultColor(),
     short_desc: '',
     long_desc: '',
     links: [],
@@ -258,11 +376,7 @@ function getFormHtml(item = null) {
       <input id="memory_time" name="memory_time" type="text" value="${escapeHtml(data.memory_time || getCurrentTimeInputValue())}" />
       <span class="hint-text">Auto-filled when opening modal, editable.</span>
     </div>
-    <div class="field">
-      <label for="color">Card Color</label>
-      <input id="color" name="color" type="text" value="${escapeHtml(data.color || '')}" placeholder="#6d5efc" />
-      <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(data.color || '#6d5efc')}"></div>
-    </div>
+    ${getColorFieldHtml(data.color)}
     <div class="field full">
       <label for="tags">Tags</label>
       <input id="tags" name="tags" type="text" value="${escapeHtml(tagsToInput(data.tags))}" placeholder="tag1, tag2, tag3" />
@@ -285,8 +399,8 @@ function getFormHtml(item = null) {
 function setupLinkEditor() {
   if (pageType !== 'music') return;
   const editorRows = memoryForm.querySelector('#linkEditorRows');
-  const addBtn = memoryForm.querySelector('#addLinkBtn');
-  if (!editorRows || !addBtn) return;
+  const addLinkBtn = memoryForm.querySelector('#addLinkBtn');
+  if (!editorRows || !addLinkBtn) return;
 
   const bindRemoveEvents = () => {
     editorRows.querySelectorAll('[data-remove-link]').forEach(button => {
@@ -298,10 +412,58 @@ function setupLinkEditor() {
   };
 
   bindRemoveEvents();
-  addBtn.addEventListener('click', () => {
+  addLinkBtn.addEventListener('click', () => {
     editorRows.insertAdjacentHTML('beforeend', buildLinkRowHtml());
     bindRemoveEvents();
   });
+}
+
+function setupColorEditor() {
+  const colorPreset = memoryForm.querySelector('#color_preset');
+  const customWrap = memoryForm.querySelector('#customColorWrap');
+  const customPicker = memoryForm.querySelector('#custom_color_picker');
+  const customHex = memoryForm.querySelector('#custom_color_hex');
+  const colorPreview = memoryForm.querySelector('#colorPreview');
+
+  if (!colorPreset || !colorPreview) return;
+
+  const updatePreview = (value) => {
+    colorPreview.style.setProperty('--preview-color', value || getDefaultColor());
+  };
+
+  const syncCustomFromHex = () => {
+    if (!customHex || !customPicker) return;
+    const normalized = normaliseHexColor(customHex.value);
+    if (normalized) {
+      customHex.value = normalized;
+      customPicker.value = normalized;
+      updatePreview(normalized);
+    }
+  };
+
+  colorPreset.addEventListener('change', () => {
+    if (colorPreset.value === '__custom__') {
+      if (customWrap) customWrap.hidden = false;
+      const normalized = normaliseHexColor(customHex?.value || customPicker?.value || getDefaultColor()) || getDefaultColor();
+      updatePreview(normalized);
+    } else {
+      if (customWrap) customWrap.hidden = true;
+      updatePreview(colorPreset.value);
+    }
+  });
+
+  if (customPicker) {
+    customPicker.addEventListener('input', () => {
+      if (!customHex) return;
+      customHex.value = customPicker.value;
+      updatePreview(customPicker.value);
+    });
+  }
+
+  if (customHex) {
+    customHex.addEventListener('input', syncCustomFromHex);
+    customHex.addEventListener('blur', syncCustomFromHex);
+  }
 }
 
 function collectFormLinks() {
@@ -317,6 +479,16 @@ function collectFormLinks() {
   return links;
 }
 
+function collectFormColor() {
+  const preset = memoryForm.querySelector('#color_preset')?.value || '';
+  if (preset && preset !== '__custom__') {
+    return normaliseHexColor(preset) || getDefaultColor();
+  }
+  const customHex = memoryForm.querySelector('#custom_color_hex')?.value || '';
+  const customPicker = memoryForm.querySelector('#custom_color_picker')?.value || '';
+  return normaliseHexColor(customHex) || normaliseHexColor(customPicker) || getDefaultColor();
+}
+
 function openFormModal(mode, item = null) {
   state.mode = mode;
   formModalTitle.textContent = mode === 'create' ? 'Add' : 'Edit';
@@ -329,24 +501,27 @@ function openFormModal(mode, item = null) {
   });
 
   setupLinkEditor();
-
-  const colorInput = memoryForm.querySelector('#color');
-  const colorPreview = memoryForm.querySelector('#colorPreview');
-  if (colorInput && colorPreview) {
-    colorInput.addEventListener('input', () => {
-      colorPreview.style.setProperty('--preview-color', colorInput.value || '#6d5efc');
-    });
-  }
+  setupColorEditor();
 
   memoryForm.onsubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(memoryForm);
+    const selectedColor = collectFormColor();
+
+    if (!selectedColor) {
+      alert('Invalid color value.');
+      return;
+    }
+    if (isForbiddenColor(selectedColor)) {
+      alert('White is not allowed, please choose another color.');
+      return;
+    }
 
     const payload = {
       title: (formData.get('title') || '').toString().trim(),
       memory_time: (formData.get('memory_time') || '').toString().trim(),
       tags: parseTags((formData.get('tags') || '').toString()),
-      color: ((formData.get('color') || '').toString().trim() || (pageType === 'music' ? '#6d5efc' : '#18a999')),
+      color: selectedColor,
       short_desc: (formData.get('short_desc') || '').toString().trim(),
       long_desc: (formData.get('long_desc') || '').toString().trim(),
     };
@@ -431,14 +606,71 @@ function applySearch() {
   renderCards();
 }
 
-async function loadLinkOptions() {
-  if (pageType !== 'music') return;
-  const response = await fetch('/api/config/link-options');
+function renderSearchFilterControl() {
+  if (!toolbar || document.getElementById('searchFilterWrap')) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'search-filter-wrap';
+  wrap.id = 'searchFilterWrap';
+  wrap.innerHTML = `
+    <button class="secondary-btn filter-btn" type="button" id="filterBtn">Filter</button>
+    <div class="filter-popover" id="filterPopover" hidden>
+      <div class="filter-title">Search In</div>
+      ${searchFieldOptions.map(item => `
+        <label class="filter-option">
+          <input type="checkbox" value="${escapeHtml(item.key)}" ${state.searchFields.has(item.key) ? 'checked' : ''} />
+          <span>${escapeHtml(item.label)}</span>
+        </label>
+      `).join('')}
+    </div>
+  `;
+  toolbar.insertBefore(wrap, addBtn);
+
+  const filterBtn = wrap.querySelector('#filterBtn');
+  const popover = wrap.querySelector('#filterPopover');
+  const checkboxNodes = wrap.querySelectorAll('input[type="checkbox"]');
+
+  filterBtn.addEventListener('click', () => {
+    popover.hidden = !popover.hidden;
+  });
+
+  checkboxNodes.forEach(node => {
+    node.addEventListener('change', () => {
+      const checked = Array.from(checkboxNodes)
+        .filter(item => item.checked)
+        .map(item => item.value);
+
+      state.searchFields = new Set(checked.length ? checked : defaultSearchFields);
+      if (!checked.length) {
+        checkboxNodes.forEach(item => {
+          item.checked = defaultSearchFields.includes(item.value);
+        });
+      }
+      applySearch();
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!wrap.contains(event.target)) {
+      popover.hidden = true;
+    }
+  });
+}
+
+async function loadUiConfig() {
+  const response = await fetch('/api/config/ui');
   if (!response.ok) {
-    throw new Error('Failed to load link options.');
+    throw new Error('Failed to load UI config.');
   }
   const data = await response.json();
-  state.linkOptions = Array.isArray(data?.items) ? data.items : [];
+  state.linkOptions = Array.isArray(data?.link_options) ? data.link_options : [];
+  const loadedColorConfig = data?.color_config || {};
+  state.colorConfig = {
+    ...fallbackColorConfig,
+    ...loadedColorConfig,
+    presets: Array.isArray(loadedColorConfig?.presets) && loadedColorConfig.presets.length
+      ? loadedColorConfig.presets
+      : fallbackColorConfig.presets,
+  };
 }
 
 async function loadItems() {
@@ -477,16 +709,13 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     closeFormModal();
     closeDeleteModal();
-    if (window.innerWidth <= 960) {
-      closeDetail();
-    }
+    closeDetail();
   }
 });
 
 async function init() {
-  if (pageType === 'music') {
-    await loadLinkOptions();
-  }
+  await loadUiConfig();
+  renderSearchFilterControl();
   await loadItems();
 }
 
