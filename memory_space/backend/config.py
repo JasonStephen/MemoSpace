@@ -34,21 +34,21 @@ LINK_OPTIONS: list[dict[str, object]] = [
 ]
 
 COLOR_PRESETS: list[dict[str, str]] = [
-    {'name': 'Indigo', 'value': '#6d5efc'},
-    {'name': 'Teal', 'value': '#18a999'},
-    {'name': 'Coral', 'value': '#ff6f61'},
-    {'name': 'Saffron', 'value': '#f4b400'},
-    {'name': 'Ocean', 'value': '#1e88e5'},
-    {'name': 'Forest', 'value': '#2e7d32'},
-    {'name': 'Rose', 'value': '#e91e63'},
-    {'name': 'Amber', 'value': '#ff8f00'},
-    {'name': 'Slate', 'value': '#546e7a'},
-    {'name': 'Mint', 'value': '#00b894'},
-    {'name': 'Ruby', 'value': '#d63031'},
-    {'name': 'Sky', 'value': '#00a8ff'},
-    {'name': 'Violet', 'value': '#8e44ad'},
-    {'name': 'Lime', 'value': '#7cb342'},
-    {'name': 'Copper', 'value': '#b87333'},
+    {'name': 'Calm', 'value': '#7FB3D5'},
+    {'name': 'Peace', 'value': '#8ED1C6'},
+    {'name': 'Tender', 'value': '#F6B6C8'},
+    {'name': 'Joy', 'value': '#FFD166'},
+    {'name': 'Hope', 'value': '#87CEFA'},
+    {'name': 'Healing', 'value': '#A3D977'},
+    {'name': 'Romance', 'value': '#FF5C8A'},
+    {'name': 'Warmth', 'value': '#FF9F1C'},
+    {'name': 'Reflection', 'value': '#6B7A8F'},
+    {'name': 'Freedom', 'value': '#3DDC97'},
+    {'name': 'Passion', 'value': '#E63946'},
+    {'name': 'Clarity', 'value': '#48CAE4'},
+    {'name': 'Mystery', 'value': '#6A4C93'},
+    {'name': 'Growth', 'value': '#6BAF45'},
+    {'name': 'Nostalgia', 'value': '#B08968'},
 ]
 
 COLOR_CONFIG: dict[str, object] = {

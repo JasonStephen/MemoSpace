@@ -177,15 +177,41 @@ function renderCards() {
 
   memoryGrid.innerHTML = state.filteredItems.map(item => {
     const isActive = item.id === state.selectedId;
+    const avatar = pageType === 'music'
+      ? `
+        <div class="card-avatar-wrap">
+          <div class="card-avatar card-avatar-fallback">♪</div>
+          ${item.icon_url?.trim()
+            ? `<img class="card-avatar card-avatar-img" src="${escapeHtml(item.icon_url)}" alt="cover" loading="lazy" onerror="this.style.display='none'" />`
+            : ''}
+        </div>
+      `
+      : '';
     const subtitle = pageType === 'music'
       ? `<p class="card-subtitle">${escapeHtml(textOrEmpty(item.artist))}</p>`
       : '';
-    return `
-      <article class="card ${isActive ? 'active' : ''}" data-id="${item.id}" style="--card-accent:${escapeHtml(item.color || getDefaultColor())}">
+
+    const musicBody = pageType === 'music'
+      ? `
+        <div class="music-card-layout">
+          <div class="card-head">${avatar}</div>
+          <div class="music-card-content">
+            <h3 class="card-title">${escapeHtml(textOrEmpty(item.title))}</h3>
+            ${subtitle}
+            <p class="card-desc">${escapeHtml(textOrEmpty(item.short_desc || item.long_desc))}</p>
+            ${renderCardTagSummary(item.tags)}
+          </div>
+        </div>
+      `
+      : `
         <h3 class="card-title">${escapeHtml(textOrEmpty(item.title))}</h3>
-        ${subtitle}
         <p class="card-desc">${escapeHtml(textOrEmpty(item.short_desc || item.long_desc))}</p>
         ${renderCardTagSummary(item.tags)}
+      `;
+
+    return `
+      <article class="card ${isActive ? 'active' : ''}" data-id="${item.id}" style="--card-accent:${escapeHtml(item.color || getDefaultColor())}">
+        ${musicBody}
         <div class="card-time">${escapeHtml(textOrEmpty(item.memory_time))}</div>
       </article>
     `;
