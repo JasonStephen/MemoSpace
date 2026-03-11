@@ -286,44 +286,36 @@ function buildLinkRowHtml(link = null) {
   `;
 }
 
-function buildColorPresetOptions(currentColor) {
+function getColorFieldHtml(currentColor) {
   const presets = state.colorConfig.presets || [];
   const normalizedCurrent = normaliseHexColor(currentColor || getDefaultColor());
   const hasPreset = presets.some(item => normaliseHexColor(item.value) === normalizedCurrent);
   const firstPreset = normaliseHexColor(presets[0]?.value || getDefaultColor()) || getDefaultColor();
-  const selectedValue = hasPreset
-    ? normalizedCurrent
-    : (state.colorConfig.allow_custom ? '__custom__' : firstPreset);
+  const mode = 'preset';
+  const selectedPreset = hasPreset ? normalizedCurrent : firstPreset;
+  const customHidden = mode === 'custom' ? '' : 'hidden';
+  const customColor = normalizedCurrent || getDefaultColor();
 
-  const presetOptions = presets.map(item => {
-    const value = normaliseHexColor(item.value);
-    return `<option value="${escapeHtml(value)}" ${value === selectedValue ? 'selected' : ''}>${escapeHtml(item.name)} (${escapeHtml(value)})</option>`;
-  }).join('');
-
-  const customOption = state.colorConfig.allow_custom
-    ? `<option value="__custom__" ${selectedValue === '__custom__' ? 'selected' : ''}>Custom</option>`
-    : '';
-  return { presetOptions, customOption, selectedValue, normalizedCurrent };
-}
-
-function getColorFieldHtml(currentColor) {
-  const { presetOptions, customOption, selectedValue, normalizedCurrent } = buildColorPresetOptions(currentColor);
-  const customHidden = selectedValue === '__custom__' ? '' : 'hidden';
   return `
     <div class="field">
-      <label for="color_preset">Card Color</label>
-      <select id="color_preset" name="color_preset" class="color-preset-select">
-        ${presetOptions}
-        ${customOption}
-      </select>
+      <label>Card Color</label>
+      <div class="color-preset-grid">
+        ${presets.map(item => {
+          const value = normaliseHexColor(item.value);
+          const active = mode === 'preset' && value === selectedPreset ? 'active' : '';
+          return `<button type="button" class="color-swatch-btn ${active}" data-preset-color="${escapeHtml(value)}" title="${escapeHtml(item.name)}" style="--swatch-color:${escapeHtml(value)}"></button>`;
+        }).join('')}
+        ${state.colorConfig.allow_custom ? `<button type="button" class="color-custom-btn ${mode === 'custom' ? 'active' : ''}" id="customColorTrigger">Custom</button>` : ''}
+      </div>
+      <input type="hidden" id="color_mode" value="${escapeHtml(mode)}" />
+      <input type="hidden" id="selected_preset_color" value="${escapeHtml(selectedPreset)}" />
       ${state.colorConfig.allow_custom ? `
       <div class="custom-color-wrap" id="customColorWrap" ${customHidden}>
-        <input id="custom_color_picker" name="custom_color_picker" type="color" value="${escapeHtml(normalizedCurrent || getDefaultColor())}" />
-        <input id="custom_color_hex" name="custom_color_hex" type="text" value="${escapeHtml(normalizedCurrent || getDefaultColor())}" placeholder="#RRGGBB or #RGB" />
+        <input id="custom_color_picker" name="custom_color_picker" type="color" value="${escapeHtml(customColor)}" />
+        <input id="custom_color_hex" name="custom_color_hex" type="text" value="${escapeHtml(customColor)}" placeholder="#RRGGBB or #RGB" />
       </div>
       ` : ''}
-      <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(normalizedCurrent || getDefaultColor())}"></div>
-      <span class="hint-text">15 presets + custom hex. White is disabled.</span>
+      <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(selectedPreset)}"></div>
     </div>
   `;
 }
@@ -419,16 +411,28 @@ function setupLinkEditor() {
 }
 
 function setupColorEditor() {
-  const colorPreset = memoryForm.querySelector('#color_preset');
+  const modeInput = memoryForm.querySelector('#color_mode');
+  const selectedPresetInput = memoryForm.querySelector('#selected_preset_color');
+  const swatchButtons = memoryForm.querySelectorAll('[data-preset-color]');
+  const customTrigger = memoryForm.querySelector('#customColorTrigger');
   const customWrap = memoryForm.querySelector('#customColorWrap');
   const customPicker = memoryForm.querySelector('#custom_color_picker');
   const customHex = memoryForm.querySelector('#custom_color_hex');
   const colorPreview = memoryForm.querySelector('#colorPreview');
 
-  if (!colorPreset || !colorPreview) return;
+  if (!modeInput || !selectedPresetInput || !colorPreview) return;
 
   const updatePreview = (value) => {
     colorPreview.style.setProperty('--preview-color', value || getDefaultColor());
+  };
+
+  const setActiveSwatch = (value) => {
+    swatchButtons.forEach(button => {
+      button.classList.toggle('active', button.getAttribute('data-preset-color') === value && modeInput.value === 'preset');
+    });
+    if (customTrigger) {
+      customTrigger.classList.toggle('active', modeInput.value === 'custom');
+    }
   };
 
   const syncCustomFromHex = () => {
@@ -437,26 +441,40 @@ function setupColorEditor() {
     if (normalized) {
       customHex.value = normalized;
       customPicker.value = normalized;
-      updatePreview(normalized);
+      if (modeInput.value === 'custom') {
+        updatePreview(normalized);
+      }
     }
   };
 
-  colorPreset.addEventListener('change', () => {
-    if (colorPreset.value === '__custom__') {
+  swatchButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const selected = normaliseHexColor(button.getAttribute('data-preset-color') || '') || getDefaultColor();
+      modeInput.value = 'preset';
+      selectedPresetInput.value = selected;
+      if (customWrap) customWrap.hidden = true;
+      setActiveSwatch(selected);
+      updatePreview(selected);
+    });
+  });
+
+  if (customTrigger) {
+    customTrigger.addEventListener('click', () => {
+      modeInput.value = 'custom';
       if (customWrap) customWrap.hidden = false;
       const normalized = normaliseHexColor(customHex?.value || customPicker?.value || getDefaultColor()) || getDefaultColor();
       updatePreview(normalized);
-    } else {
-      if (customWrap) customWrap.hidden = true;
-      updatePreview(colorPreset.value);
-    }
-  });
+      setActiveSwatch(selectedPresetInput.value);
+    });
+  }
 
   if (customPicker) {
     customPicker.addEventListener('input', () => {
       if (!customHex) return;
       customHex.value = customPicker.value;
-      updatePreview(customPicker.value);
+      if (modeInput.value === 'custom') {
+        updatePreview(customPicker.value);
+      }
     });
   }
 
@@ -464,6 +482,8 @@ function setupColorEditor() {
     customHex.addEventListener('input', syncCustomFromHex);
     customHex.addEventListener('blur', syncCustomFromHex);
   }
+
+  setActiveSwatch(selectedPresetInput.value);
 }
 
 function collectFormLinks() {
@@ -480,8 +500,9 @@ function collectFormLinks() {
 }
 
 function collectFormColor() {
-  const preset = memoryForm.querySelector('#color_preset')?.value || '';
-  if (preset && preset !== '__custom__') {
+  const mode = memoryForm.querySelector('#color_mode')?.value || 'preset';
+  const preset = memoryForm.querySelector('#selected_preset_color')?.value || '';
+  if (mode !== 'custom') {
     return normaliseHexColor(preset) || getDefaultColor();
   }
   const customHex = memoryForm.querySelector('#custom_color_hex')?.value || '';
