@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>音乐记忆空间</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body data-page-type="music">
+  <div class="app-shell">
+    <aside class="detail-panel" id="detailPanel" aria-hidden="true">
+      <div class="detail-inner" id="detailInner">
+        <div class="detail-placeholder">请选择一张卡片查看详情</div>
+      </div>
+      <button class="panel-close mobile-only" id="panelCloseBtn" type="button">关闭</button>
+    </aside>
+
+    <main class="content-shell" id="contentShell">
+      <header class="topbar">
+        <h1 class="page-title">音乐记忆空间</h1>
+        <div class="toolbar">
+          <label class="search-box">
+            <input type="text" id="searchInput" placeholder="Search" />
+            <span class="search-icon">🔍</span>
+          </label>
+          <button class="primary-btn" id="addBtn" type="button">Add</button>
+        </div>
+      </header>
+
+      <section class="grid-shell">
+        <div class="memory-grid music-grid" id="memoryGrid"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="formModalOverlay" aria-hidden="true">
+    <div class="modal-card form-modal">
+      <div class="modal-header">
+        <h2 id="formModalTitle">新增</h2>
+        <button class="icon-btn" type="button" data-close-form>✕</button>
+      </div>
+      <form id="memoryForm" class="memory-form"></form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="deleteModalOverlay" aria-hidden="true">
+    <div class="modal-card confirm-modal">
+      <div class="modal-header">
+        <h2>确认删除</h2>
+        <button class="icon-btn" type="button" data-close-delete>✕</button>
+      </div>
+      <p class="confirm-text">删除后无法恢复，确定继续吗？</p>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-close-delete>取消</button>
+        <button class="danger-btn" type="button" id="confirmDeleteBtn">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
