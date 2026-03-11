@@ -1,5 +1,8 @@
-const pageType = document.body.dataset.pageType;
+﻿const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
+const supportedLocales = ['zh-CN', 'zh-TW', 'en'];
+const defaultLocale = 'zh-CN';
+const localeStorageKey = 'memory_space_locale';
 
 const fallbackColorConfig = {
   default_music: '#6d5efc',
@@ -14,20 +17,20 @@ const fallbackColorConfig = {
 
 const searchFieldOptions = pageType === 'music'
   ? [
-      { key: 'title', label: 'Title' },
-      { key: 'artist', label: 'Artist' },
-      { key: 'tags', label: 'Tags' },
-      { key: 'short_desc', label: 'Short Desc' },
-      { key: 'long_desc', label: 'Long Desc' },
-      { key: 'links', label: 'Links' },
-      { key: 'memory_time', label: 'Time' },
+      { key: 'title' },
+      { key: 'artist' },
+      { key: 'tags' },
+      { key: 'short_desc' },
+      { key: 'long_desc' },
+      { key: 'links' },
+      { key: 'memory_time' },
     ]
   : [
-      { key: 'title', label: 'Title' },
-      { key: 'tags', label: 'Tags' },
-      { key: 'short_desc', label: 'Short Desc' },
-      { key: 'long_desc', label: 'Long Desc' },
-      { key: 'memory_time', label: 'Time' },
+      { key: 'title' },
+      { key: 'tags' },
+      { key: 'short_desc' },
+      { key: 'long_desc' },
+      { key: 'memory_time' },
     ];
 
 const defaultSearchFields = pageType === 'music' ? ['title', 'artist'] : ['title'];
@@ -41,6 +44,8 @@ const state = {
   linkOptions: [],
   colorConfig: { ...fallbackColorConfig },
   searchFields: new Set(defaultSearchFields),
+  locale: defaultLocale,
+  messages: {},
 };
 let currentMarkdownEditor = null;
 
@@ -56,6 +61,11 @@ const formModalTitle = document.getElementById('formModalTitle');
 const memoryForm = document.getElementById('memoryForm');
 const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 const toolbar = document.querySelector('.toolbar');
+const pageTitleEl = document.getElementById('pageTitle');
+const detailPlaceholderEl = document.getElementById('detailPlaceholder');
+const deleteModalTitleEl = document.getElementById('deleteModalTitle');
+const deleteModalTextEl = document.getElementById('deleteModalText');
+const deleteCancelBtn = document.getElementById('deleteCancelBtn');
 
 const escapeHtml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -64,9 +74,13 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;');
 
+function t(key, fallback = '') {
+  return state.messages[key] || fallback || key;
+}
+
 function textOrEmpty(value) {
   const text = (value ?? '').toString().trim();
-  return text || 'Empty';
+  return text || t('common.empty', 'Empty');
 }
 
 function parseTags(input) {
@@ -152,7 +166,7 @@ function itemSearchText(item) {
   return parts.join(' ').toLowerCase();
 }
 
-function renderEmptyState(message = 'Empty') {
+function renderEmptyState(message = t('common.empty', 'Empty')) {
   memoryGrid.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
 
@@ -171,7 +185,7 @@ function renderCardTagSummary(tags) {
 
 function renderCards() {
   if (!state.filteredItems.length) {
-    renderEmptyState(searchInput.value.trim() ? 'No matching items' : 'Empty');
+    renderEmptyState(searchInput.value.trim() ? t('common.noMatch', 'No matching items') : t('common.empty', 'Empty'));
     return;
   }
 
@@ -236,7 +250,7 @@ function renderCards() {
 function renderTagList(tags) {
   const cleanTags = (tags || []).filter(Boolean);
   if (!cleanTags.length) {
-    return '<div class="tag-list"><span class="tag-pill">Empty</span></div>';
+    return `<div class="tag-list"><span class="tag-pill">${escapeHtml(t('common.empty', 'Empty'))}</span></div>`;
   }
   return `<div class="tag-list">${cleanTags.map(tag => `<span class="tag-pill">#${escapeHtml(tag)}</span>`).join('')}</div>`;
 }
@@ -258,8 +272,8 @@ function renderLinkList(links) {
 function openDetail(item) {
   const avatarHtml = pageType === 'music'
     ? (item.icon_url?.trim()
-      ? `<img class="detail-avatar" src="${escapeHtml(item.icon_url)}" alt="avatar" onerror="this.outerHTML='<div class=&quot;detail-avatar&quot;>Empty</div>'" />`
-      : `<div class="detail-avatar">Empty</div>`)
+      ? `<img class="detail-avatar" src="${escapeHtml(item.icon_url)}" alt="avatar" onerror="this.outerHTML='<div class=&quot;detail-avatar&quot;>${escapeHtml(t('common.empty', 'Empty'))}</div>'" />`
+      : `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`)
     : '';
 
   detailInner.innerHTML = `
@@ -275,8 +289,8 @@ function openDetail(item) {
     </div>
     <div class="detail-markdown">${marked.parse(textOrEmpty(item.long_desc || item.short_desc))}</div>
     <div class="detail-actions">
-      <button class="danger-btn" type="button" id="detailDeleteBtn">Del</button>
-      <button class="secondary-btn" type="button" id="detailEditBtn">Edit</button>
+      <button class="danger-btn" type="button" id="detailDeleteBtn">${escapeHtml(t('detail.del', 'Delete'))}</button>
+      <button class="secondary-btn" type="button" id="detailEditBtn">${escapeHtml(t('detail.edit', 'Edit'))}</button>
     </div>
   `;
 
@@ -325,14 +339,14 @@ function getColorFieldHtml(currentColor) {
 
   return `
     <div class="field">
-      <label>Card Color</label>
+      <label>${escapeHtml(t('form.cardColor', 'Card Color'))}</label>
       <div class="color-preset-grid">
         ${presets.map(item => {
           const value = normaliseHexColor(item.value);
           const active = mode === 'preset' && value === selectedPreset ? 'active' : '';
           return `<button type="button" class="color-swatch-btn ${active}" data-preset-color="${escapeHtml(value)}" title="${escapeHtml(item.name)}" style="--swatch-color:${escapeHtml(value)}"></button>`;
         }).join('')}
-        ${state.colorConfig.allow_custom ? `<button type="button" class="color-custom-btn ${mode === 'custom' ? 'active' : ''}" id="customColorTrigger">Custom</button>` : ''}
+        ${state.colorConfig.allow_custom ? `<button type="button" class="color-custom-btn ${mode === 'custom' ? 'active' : ''}" id="customColorTrigger">${escapeHtml(t('common.custom', 'Custom'))}</button>` : ''}
       </div>
       <input type="hidden" id="color_mode" value="${escapeHtml(mode)}" />
       <input type="hidden" id="selected_preset_color" value="${escapeHtml(selectedPreset)}" />
@@ -367,51 +381,51 @@ function getFormHtml(item = null) {
 
   const musicExtra = pageType === 'music' ? `
     <div class="field">
-      <label for="icon_url">Icon URL</label>
+      <label for="icon_url">${escapeHtml(t('form.iconUrl', 'Cover URL'))}</label>
       <input id="icon_url" name="icon_url" type="text" value="${escapeHtml(data.icon_url || '')}" />
     </div>
     <div class="field">
-      <label for="artist">Artists</label>
+      <label for="artist">${escapeHtml(t('form.artist', 'Artist'))}</label>
       <input id="artist" name="artist" type="text" value="${escapeHtml(data.artist || '')}" />
     </div>
     <div class="field full">
-      <label>External Links</label>
+      <label>${escapeHtml(t('form.externalLinks', 'External Links'))}</label>
       <div class="link-editor" id="linkEditorRows">${linkRows}</div>
       <div class="form-inline-actions">
-        <button class="secondary-btn" type="button" id="addLinkBtn">+ Add Link</button>
+        <button class="secondary-btn" type="button" id="addLinkBtn">${escapeHtml(t('form.addLink', '+ Add Link'))}</button>
       </div>
-      <span class="hint-text">Each platform only accepts configured domains.</span>
+      <span class="hint-text">${escapeHtml(t('form.linksHint', 'Each provider accepts configured domains only.'))}</span>
     </div>
   ` : '';
 
   return `
     <div class="field">
-      <label for="title">Title</label>
+      <label for="title">${escapeHtml(t('form.title', 'Title'))}</label>
       <input id="title" name="title" type="text" value="${escapeHtml(data.title || '')}" />
     </div>
     ${musicExtra}
     <div class="field">
-      <label for="memory_time">Time</label>
+      <label for="memory_time">${escapeHtml(t('form.time', 'Time'))}</label>
       <input id="memory_time" name="memory_time" type="text" value="${escapeHtml(data.memory_time || getCurrentTimeInputValue())}" />
-      <span class="hint-text">Auto-filled when opening modal, editable.</span>
+      <span class="hint-text">${escapeHtml(t('form.timeHint', 'Auto-filled at open time, editable.'))}</span>
     </div>
     ${getColorFieldHtml(data.color)}
     <div class="field full">
-      <label for="tags">Tags</label>
-      <input id="tags" name="tags" type="text" value="${escapeHtml(tagsToInput(data.tags))}" placeholder="tag1, tag2, tag3" />
+      <label for="tags">${escapeHtml(t('form.tags', 'Tags'))}</label>
+      <input id="tags" name="tags" type="text" value="${escapeHtml(tagsToInput(data.tags))}" placeholder="${escapeHtml(t('form.tagsPlaceholder', 'tag1, tag2, tag3'))}" />
     </div>
     <div class="field full">
-      <label for="short_desc">Short Description</label>
+      <label for="short_desc">${escapeHtml(t('form.shortDesc', 'Short Description'))}</label>
       <textarea id="short_desc" name="short_desc">${escapeHtml(data.short_desc || '')}</textarea>
     </div>
     <div class="field full">
-      <label for="long_desc">Long Description [Markdown]</label>
+      <label for="long_desc">${escapeHtml(t('form.longDesc', 'Long Description [Markdown]'))}</label>
       <textarea id="long_desc" name="long_desc">${escapeHtml(data.long_desc || '')}</textarea>
       <div class="markdown-live-preview" id="markdownLivePreview"></div>
     </div>
     <div class="form-actions">
-      <button class="secondary-btn" type="button" data-close-form>Cancel</button>
-      <button class="primary-btn" type="submit">Save</button>
+      <button class="secondary-btn" type="button" data-close-form>${escapeHtml(t('common.cancel', 'Cancel'))}</button>
+      <button class="primary-btn" type="submit">${escapeHtml(t('common.save', 'Save'))}</button>
     </div>
   `;
 }
@@ -420,7 +434,7 @@ function renderMarkdownLivePreview(rawMarkdown) {
   const preview = memoryForm.querySelector('#markdownLivePreview');
   if (!preview) return;
   const source = (rawMarkdown || '').toString().trim();
-  preview.innerHTML = source ? marked.parse(source) : '<p class="md-preview-empty">Live preview...</p>';
+  preview.innerHTML = source ? marked.parse(source) : `<p class="md-preview-empty">${escapeHtml(t('form.livePreview', 'Live preview...'))}</p>`;
 }
 
 function getLongDescValue() {
@@ -619,7 +633,7 @@ function collectFormColor() {
 
 function openFormModal(mode, item = null) {
   state.mode = mode;
-  formModalTitle.textContent = mode === 'create' ? 'Add' : 'Edit';
+  formModalTitle.textContent = mode === 'create' ? t('form.create', 'Add') : t('form.edit', 'Edit');
   memoryForm.innerHTML = getFormHtml(item);
   formModalOverlay.classList.add('open');
   formModalOverlay.setAttribute('aria-hidden', 'false');
@@ -638,11 +652,11 @@ function openFormModal(mode, item = null) {
     const selectedColor = collectFormColor();
 
     if (!selectedColor) {
-      alert('Invalid color value.');
+      alert(t('form.colorInvalid', 'Invalid color value.'));
       return;
     }
     if (isForbiddenColor(selectedColor)) {
-      alert('White is not allowed, please choose another color.');
+      alert(t('form.colorForbidden', 'White is not allowed.'));
       return;
     }
 
@@ -673,7 +687,7 @@ function openFormModal(mode, item = null) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      alert(`Save failed: ${errorText}`);
+      alert(`${t('form.saveFailed', 'Save failed')}: ${errorText}`);
       return;
     }
 
@@ -715,7 +729,7 @@ async function confirmDelete() {
   if (!state.pendingDeleteId) return;
   const response = await fetch(`${apiBase}/${state.pendingDeleteId}`, { method: 'DELETE' });
   if (!response.ok) {
-    alert('Delete failed.');
+    alert(t('form.deleteFailed', 'Delete failed.'));
     return;
   }
 
@@ -740,23 +754,26 @@ function applySearch() {
 }
 
 function renderSearchFilterControl() {
-  if (!toolbar || document.getElementById('searchFilterWrap')) return;
+  const old = document.getElementById('searchFilterWrap');
+  old?.remove();
+  if (!toolbar) return;
   const wrap = document.createElement('div');
   wrap.className = 'search-filter-wrap';
   wrap.id = 'searchFilterWrap';
   wrap.innerHTML = `
-    <button class="secondary-btn filter-btn" type="button" id="filterBtn">Filter</button>
+    <button class="secondary-btn filter-btn" type="button" id="filterBtn">${escapeHtml(t('common.filter', 'Filter'))}</button>
     <div class="filter-popover" id="filterPopover" hidden>
-      <div class="filter-title">Search In</div>
+      <div class="filter-title">${escapeHtml(t('common.searchIn', 'Search In'))}</div>
       ${searchFieldOptions.map(item => `
         <label class="filter-option">
           <input type="checkbox" value="${escapeHtml(item.key)}" ${state.searchFields.has(item.key) ? 'checked' : ''} />
-          <span>${escapeHtml(item.label)}</span>
+          <span>${escapeHtml(t(`searchField.${item.key}`, item.key))}</span>
         </label>
       `).join('')}
     </div>
   `;
-  toolbar.insertBefore(wrap, addBtn);
+  const switchBtn = document.getElementById('switchPageBtn');
+  toolbar.insertBefore(wrap, switchBtn || addBtn);
 
   const filterBtn = wrap.querySelector('#filterBtn');
   const popover = wrap.querySelector('#filterPopover');
@@ -787,6 +804,105 @@ function renderSearchFilterControl() {
       popover.hidden = true;
     }
   });
+}
+
+function renderToolbarControls() {
+  if (!toolbar || !addBtn) return;
+  document.getElementById('switchPageBtn')?.remove();
+  document.getElementById('langWrap')?.remove();
+
+  const switchBtn = document.createElement('button');
+  switchBtn.type = 'button';
+  switchBtn.className = 'secondary-btn nav-btn';
+  switchBtn.id = 'switchPageBtn';
+  switchBtn.textContent = pageType === 'music'
+    ? t('common.switchToMind', 'Go Mind')
+    : t('common.switchToMusic', 'Go Music');
+  switchBtn.addEventListener('click', () => {
+    window.location.href = pageType === 'music' ? '/mind' : '/music';
+  });
+  toolbar.insertBefore(switchBtn, addBtn);
+
+  const langWrap = document.createElement('div');
+  langWrap.className = 'lang-wrap';
+  langWrap.id = 'langWrap';
+  langWrap.innerHTML = `
+    <button class="secondary-btn lang-btn" type="button" id="langBtn">${escapeHtml(t(`lang.${state.locale}`, state.locale))}</button>
+    <div class="lang-menu" id="langMenu" hidden>
+      ${supportedLocales.map(locale => `
+        <button type="button" class="lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(t(`lang.${locale}`, locale))}</button>
+      `).join('')}
+    </div>
+  `;
+  addBtn.insertAdjacentElement('afterend', langWrap);
+
+  const langBtn = langWrap.querySelector('#langBtn');
+  const langMenu = langWrap.querySelector('#langMenu');
+  langBtn.addEventListener('click', () => {
+    langMenu.hidden = !langMenu.hidden;
+  });
+
+  langWrap.querySelectorAll('.lang-option').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const locale = btn.getAttribute('data-locale');
+      langMenu.hidden = true;
+      await setLocale(locale);
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!langWrap.contains(event.target)) {
+      langMenu.hidden = true;
+    }
+  });
+}
+
+function applyStaticTexts() {
+  const titleKey = pageType === 'music' ? 'page.music.title' : 'page.mind.title';
+  const title = t(titleKey, pageType === 'music' ? 'Music Memory Space' : 'Mind Memory Space');
+  document.title = title;
+  document.documentElement.lang = state.locale;
+  if (pageTitleEl) pageTitleEl.textContent = title;
+  searchInput.placeholder = t('common.search', 'Search');
+  addBtn.textContent = t('common.add', 'Add');
+  panelCloseBtn.textContent = t('common.close', 'Close');
+  if (deleteModalTitleEl) deleteModalTitleEl.textContent = t('common.deleteTitle', 'Confirm Delete');
+  if (deleteModalTextEl) deleteModalTextEl.textContent = t('common.deleteText', 'Deletion is irreversible. Continue?');
+  if (deleteCancelBtn) deleteCancelBtn.textContent = t('common.cancel', 'Cancel');
+  if (confirmDeleteBtn) confirmDeleteBtn.textContent = t('common.delete', 'Delete');
+  if (detailPlaceholderEl && !state.selectedId) {
+    detailPlaceholderEl.textContent = t('common.selectCard', 'Select a card to view details.');
+  }
+}
+
+async function loadLocaleMessages(locale) {
+  const selected = supportedLocales.includes(locale) ? locale : defaultLocale;
+  const response = await fetch(`/static/locales/${selected}.json`);
+  if (!response.ok) {
+    throw new Error(`Locale file not found: ${selected}`);
+  }
+  return response.json();
+}
+
+async function setLocale(locale) {
+  try {
+    state.messages = await loadLocaleMessages(locale);
+    state.locale = locale;
+  } catch {
+    state.messages = await loadLocaleMessages(defaultLocale);
+    state.locale = defaultLocale;
+  }
+
+  localStorage.setItem(localeStorageKey, state.locale);
+  applyStaticTexts();
+  renderToolbarControls();
+  renderSearchFilterControl();
+  renderCards();
+
+  if (state.selectedId) {
+    const selected = state.items.find(item => item.id === state.selectedId);
+    if (selected) openDetail(selected);
+  }
 }
 
 async function loadUiConfig() {
@@ -848,11 +964,12 @@ window.addEventListener('keydown', (event) => {
 
 async function init() {
   await loadUiConfig();
-  renderSearchFilterControl();
+  const preferredLocale = localStorage.getItem(localeStorageKey) || defaultLocale;
+  await setLocale(preferredLocale);
   await loadItems();
 }
 
 init().catch((err) => {
   console.error(err);
-  alert('Initialization failed.');
+  alert(t('form.initFailed', 'Initialization failed.'));
 });

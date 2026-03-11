@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>音乐记忆空间</title>
+  <title>Music Memory Space</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -13,15 +13,15 @@
   <div class="app-shell">
     <aside class="detail-panel" id="detailPanel" aria-hidden="true">
       <div class="detail-inner" id="detailInner">
-        <div class="detail-placeholder">请选择一张卡片查看详情</div>
+        <div class="detail-placeholder" id="detailPlaceholder">Select a card to view details.</div>
       </div>
-      <button class="panel-close mobile-only" id="panelCloseBtn" type="button">关闭</button>
+      <button class="panel-close mobile-only" id="panelCloseBtn" type="button">Close</button>
     </aside>
 
     <main class="content-shell" id="contentShell">
       <header class="topbar">
-        <h1 class="page-title">音乐记忆空间</h1>
-        <div class="toolbar">
+        <h1 class="page-title" id="pageTitle">Music Memory Space</h1>
+        <div class="toolbar" id="toolbar">
           <label class="search-box">
             <input type="text" id="searchInput" placeholder="Search" />
             <span class="search-icon">🔍</span>
@@ -39,7 +39,7 @@
   <div class="modal-overlay" id="formModalOverlay" aria-hidden="true">
     <div class="modal-card form-modal">
       <div class="modal-header">
-        <h2 id="formModalTitle">新增</h2>
+        <h2 id="formModalTitle">Add</h2>
         <button class="icon-btn" type="button" data-close-form>✕</button>
       </div>
       <form id="memoryForm" class="memory-form"></form>
@@ -49,13 +49,13 @@
   <div class="modal-overlay" id="deleteModalOverlay" aria-hidden="true">
     <div class="modal-card confirm-modal">
       <div class="modal-header">
-        <h2>确认删除</h2>
+        <h2 id="deleteModalTitle">Confirm Delete</h2>
         <button class="icon-btn" type="button" data-close-delete>✕</button>
       </div>
-      <p class="confirm-text">删除后无法恢复，确定继续吗？</p>
+      <p class="confirm-text" id="deleteModalText">Deletion is irreversible. Continue?</p>
       <div class="modal-actions">
-        <button class="secondary-btn" type="button" data-close-delete>取消</button>
-        <button class="danger-btn" type="button" id="confirmDeleteBtn">删除</button>
+        <button class="secondary-btn" type="button" data-close-delete id="deleteCancelBtn">Cancel</button>
+        <button class="danger-btn" type="button" id="confirmDeleteBtn">Delete</button>
       </div>
     </div>
   </div>
