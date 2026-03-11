@@ -42,6 +42,7 @@ const state = {
   colorConfig: { ...fallbackColorConfig },
   searchFields: new Set(defaultSearchFields),
 };
+let currentMarkdownEditor = null;
 
 const detailPanel = document.getElementById('detailPanel');
 const detailInner = document.getElementById('detailInner');
@@ -380,12 +381,92 @@ function getFormHtml(item = null) {
     <div class="field full">
       <label for="long_desc">Long Description [Markdown]</label>
       <textarea id="long_desc" name="long_desc">${escapeHtml(data.long_desc || '')}</textarea>
+      <div class="markdown-live-preview" id="markdownLivePreview"></div>
     </div>
     <div class="form-actions">
       <button class="secondary-btn" type="button" data-close-form>Cancel</button>
       <button class="primary-btn" type="submit">Save</button>
     </div>
   `;
+}
+
+function renderMarkdownLivePreview(rawMarkdown) {
+  const preview = memoryForm.querySelector('#markdownLivePreview');
+  if (!preview) return;
+  const source = (rawMarkdown || '').toString().trim();
+  preview.innerHTML = source ? marked.parse(source) : '<p class="md-preview-empty">Live preview...</p>';
+}
+
+function getLongDescValue() {
+  if (currentMarkdownEditor && typeof currentMarkdownEditor.value === 'function') {
+    return currentMarkdownEditor.value().trim();
+  }
+  const plain = memoryForm.querySelector('#long_desc')?.value || '';
+  return plain.toString().trim();
+}
+
+function setupMarkdownEditor() {
+  if (currentMarkdownEditor && typeof currentMarkdownEditor.toTextArea === 'function') {
+    currentMarkdownEditor.toTextArea();
+    currentMarkdownEditor = null;
+  }
+
+  const longDescEl = memoryForm.querySelector('#long_desc');
+  if (!longDescEl) return;
+
+  const bindFallbackPreview = () => {
+    renderMarkdownLivePreview(longDescEl.value);
+    longDescEl.addEventListener('input', () => renderMarkdownLivePreview(longDescEl.value));
+  };
+
+  if (typeof window.EasyMDE !== 'function') {
+    bindFallbackPreview();
+    return;
+  }
+
+  currentMarkdownEditor = new window.EasyMDE({
+    element: longDescEl,
+    spellChecker: false,
+    status: false,
+    autofocus: false,
+    forceSync: true,
+    autoDownloadFontAwesome: true,
+    toolbar: [
+      'bold',
+      'italic',
+      'strikethrough',
+      '|',
+      'heading-1',
+      'heading-2',
+      'heading-3',
+      '|',
+      'quote',
+      'unordered-list',
+      'ordered-list',
+      '|',
+      'link',
+      'image',
+      'table',
+      '|',
+      'code',
+      'horizontal-rule',
+      '|',
+      'preview',
+      'side-by-side',
+      'fullscreen',
+      '|',
+      'guide',
+    ],
+    renderingConfig: {
+      singleLineBreaks: false,
+      codeSyntaxHighlighting: false,
+    },
+  });
+
+  renderMarkdownLivePreview(currentMarkdownEditor.value());
+  currentMarkdownEditor.codemirror.on('change', () => {
+    renderMarkdownLivePreview(currentMarkdownEditor.value());
+  });
 }
 
 function setupLinkEditor() {
@@ -523,6 +604,7 @@ function openFormModal(mode, item = null) {
 
   setupLinkEditor();
   setupColorEditor();
+  setupMarkdownEditor();
 
   memoryForm.onsubmit = async (event) => {
     event.preventDefault();
@@ -544,7 +626,7 @@ function openFormModal(mode, item = null) {
       tags: parseTags((formData.get('tags') || '').toString()),
       color: selectedColor,
       short_desc: (formData.get('short_desc') || '').toString().trim(),
-      long_desc: (formData.get('long_desc') || '').toString().trim(),
+      long_desc: getLongDescValue(),
     };
 
     if (pageType === 'music') {
@@ -583,6 +665,10 @@ function openFormModal(mode, item = null) {
 }
 
 function closeFormModal() {
+  if (currentMarkdownEditor && typeof currentMarkdownEditor.toTextArea === 'function') {
+    currentMarkdownEditor.toTextArea();
+    currentMarkdownEditor = null;
+  }
   formModalOverlay.classList.remove('open');
   formModalOverlay.setAttribute('aria-hidden', 'true');
 }

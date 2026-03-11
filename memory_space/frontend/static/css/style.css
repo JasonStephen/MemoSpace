@@ -461,6 +461,38 @@ body.panel-open .detail-panel { transform: translateX(0); }
 
 .memory-form textarea { min-height: 120px; }
 
+.EasyMDEContainer {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.EasyMDEContainer .CodeMirror {
+  min-height: 180px;
+  height: 220px;
+}
+
+.EasyMDEContainer .editor-toolbar {
+  border: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-live-preview {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.95);
+  padding: 12px 14px;
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+  line-height: 1.65;
+}
+
+.md-preview-empty {
+  margin: 0;
+  color: var(--subtext);
+}
+
 .hint-text {
   color: var(--subtext);
   font-size: 12px;
