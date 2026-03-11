@@ -3,6 +3,11 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class LinkEntryIn(BaseModel):
+    provider: str = ''
+    url: str = ''
+
+
 class MusicMemoryIn(BaseModel):
     icon_url: str = ''
     title: str = ''
@@ -12,7 +17,7 @@ class MusicMemoryIn(BaseModel):
     color: str = '#6d5efc'
     short_desc: str = ''
     long_desc: str = ''
-    links: dict[str, str] = Field(default_factory=dict)
+    links: list[LinkEntryIn] = Field(default_factory=list)
 
 
 class MindMemoryIn(BaseModel):

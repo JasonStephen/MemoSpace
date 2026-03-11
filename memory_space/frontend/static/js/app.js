@@ -1,4 +1,3 @@
-
 const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
 
@@ -8,6 +7,7 @@ const state = {
   selectedId: null,
   mode: 'create',
   pendingDeleteId: null,
+  linkOptions: [],
 };
 
 const detailPanel = document.getElementById('detailPanel');
@@ -31,7 +31,7 @@ const escapeHtml = (value) => String(value ?? '')
 
 function textOrEmpty(value) {
   const text = (value ?? '').toString().trim();
-  return text || '内容为空';
+  return text || 'Empty';
 }
 
 function parseTags(input) {
@@ -52,36 +52,54 @@ function getCurrentTimeInputValue() {
 }
 
 function normaliseLinks(raw) {
-  if (!raw) return {};
-  try {
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return Object.fromEntries(
-      Object.entries(parsed || {}).filter(([key, value]) => key && String(value || '').trim())
-    );
-  } catch {
-    return {};
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map(entry => ({
+        provider: (entry?.provider || '').toString().trim(),
+        url: (entry?.url || '').toString().trim(),
+      }))
+      .filter(entry => entry.provider && entry.url);
   }
+  if (typeof raw === 'object') {
+    return Object.entries(raw)
+      .map(([provider, url]) => ({
+        provider: provider.toString().trim().toLowerCase().replaceAll(' ', '_'),
+        url: (url || '').toString().trim(),
+      }))
+      .filter(entry => entry.provider && entry.url);
+  }
+  return [];
+}
+
+function getLinkOption(provider) {
+  return state.linkOptions.find(item => item.provider === provider);
 }
 
 function itemSearchText(item) {
+  const linkText = (item.links || []).map(link => {
+    const opt = getLinkOption(link.provider);
+    return `${opt?.label || link.provider} ${link.url}`;
+  }).join(' ');
+
   const parts = [
     item.title,
     item.artist,
     item.short_desc,
     item.long_desc,
     (item.tags || []).join(' '),
-    Object.keys(item.links || {}).join(' '),
+    linkText,
   ];
   return parts.join(' ').toLowerCase();
 }
 
-function renderEmptyState(message = '内容为空') {
+function renderEmptyState(message = 'Empty') {
   memoryGrid.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
 
 function renderCards() {
   if (!state.filteredItems.length) {
-    renderEmptyState(searchInput.value.trim() ? '没有匹配的内容' : '内容为空');
+    renderEmptyState(searchInput.value.trim() ? 'No matching items' : 'Empty');
     return;
   }
 
@@ -115,24 +133,30 @@ function renderCards() {
 function renderTagList(tags) {
   const cleanTags = (tags || []).filter(Boolean);
   if (!cleanTags.length) {
-    return '<div class="tag-list"><span class="tag-pill">内容为空</span></div>';
+    return '<div class="tag-list"><span class="tag-pill">Empty</span></div>';
   }
   return `<div class="tag-list">${cleanTags.map(tag => `<span class="tag-pill">#${escapeHtml(tag)}</span>`).join('')}</div>`;
 }
 
 function renderLinkList(links) {
-  const entries = Object.entries(normaliseLinks(links));
+  const entries = normaliseLinks(links);
   if (!entries.length) return '';
-  return `<div class="link-list">${entries.map(([platform, url]) => `
-    <a class="link-chip" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(platform)}</a>
-  `).join('')}</div>`;
+  return `<div class="link-list">${entries.map(link => {
+    const option = getLinkOption(link.provider);
+    const label = option?.label || link.provider;
+    const icon = option?.icon || '';
+    const iconHtml = icon
+      ? `<img src="${escapeHtml(icon)}" alt="${escapeHtml(label)}" loading="lazy" />`
+      : `<span>${escapeHtml(label.slice(0, 1).toUpperCase())}</span>`;
+    return `<a class="link-icon-btn" href="${escapeHtml(link.url)}" title="${escapeHtml(label)}" target="_blank" rel="noreferrer">${iconHtml}</a>`;
+  }).join('')}</div>`;
 }
 
 function openDetail(item) {
   const avatarHtml = pageType === 'music'
     ? (item.icon_url?.trim()
-      ? `<img class="detail-avatar" src="${escapeHtml(item.icon_url)}" alt="avatar" onerror="this.outerHTML='<div class=&quot;detail-avatar&quot;>内容为空</div>'" />`
-      : `<div class="detail-avatar">内容为空</div>`)
+      ? `<img class="detail-avatar" src="${escapeHtml(item.icon_url)}" alt="avatar" onerror="this.outerHTML='<div class=&quot;detail-avatar&quot;>Empty</div>'" />`
+      : `<div class="detail-avatar">Empty</div>`)
     : '';
 
   detailInner.innerHTML = `
@@ -167,6 +191,25 @@ function closeDetail() {
   renderCards();
 }
 
+function buildLinkProviderOptions(selectedProvider = '') {
+  const selected = selectedProvider || state.linkOptions[0]?.provider || '';
+  return state.linkOptions.map(item => `
+    <option value="${escapeHtml(item.provider)}" ${item.provider === selected ? 'selected' : ''}>${escapeHtml(item.label)}</option>
+  `).join('');
+}
+
+function buildLinkRowHtml(link = null) {
+  const provider = link?.provider || state.linkOptions[0]?.provider || '';
+  const url = link?.url || '';
+  return `
+    <div class="link-row">
+      <select class="link-provider">${buildLinkProviderOptions(provider)}</select>
+      <input class="link-url" type="url" placeholder="https://..." value="${escapeHtml(url)}" />
+      <button class="icon-btn link-remove-btn" type="button" data-remove-link>&times;</button>
+    </div>
+  `;
+}
+
 function getFormHtml(item = null) {
   const data = item || {
     icon_url: '',
@@ -177,8 +220,13 @@ function getFormHtml(item = null) {
     color: pageType === 'music' ? '#6d5efc' : '#18a999',
     short_desc: '',
     long_desc: '',
-    links: {},
+    links: [],
   };
+
+  const initialLinks = normaliseLinks(data.links);
+  const linkRows = initialLinks.length
+    ? initialLinks.map(link => buildLinkRowHtml(link)).join('')
+    : buildLinkRowHtml();
 
   const musicExtra = pageType === 'music' ? `
     <div class="field">
@@ -190,9 +238,12 @@ function getFormHtml(item = null) {
       <input id="artist" name="artist" type="text" value="${escapeHtml(data.artist || '')}" />
     </div>
     <div class="field full">
-      <label for="links_json">外链 JSON</label>
-      <textarea id="links_json" name="links_json" placeholder='{"Spotify":"https://...","网易云音乐":"https://..."}'>${escapeHtml(JSON.stringify(normaliseLinks(data.links), null, 2))}</textarea>
-      <span class="hint-text">所有外链存放在单个 JSON 字段中。</span>
+      <label>External Links</label>
+      <div class="link-editor" id="linkEditorRows">${linkRows}</div>
+      <div class="form-inline-actions">
+        <button class="secondary-btn" type="button" id="addLinkBtn">+ Add Link</button>
+      </div>
+      <span class="hint-text">Each platform only accepts configured domains.</span>
     </div>
   ` : '';
 
@@ -203,37 +254,72 @@ function getFormHtml(item = null) {
     </div>
     ${musicExtra}
     <div class="field">
-      <label for="memory_time">时间日期</label>
+      <label for="memory_time">Time</label>
       <input id="memory_time" name="memory_time" type="text" value="${escapeHtml(data.memory_time || getCurrentTimeInputValue())}" />
-      <span class="hint-text">默认填入打开模态框时刻，可手动修改。</span>
+      <span class="hint-text">Auto-filled when opening modal, editable.</span>
     </div>
     <div class="field">
-      <label for="color">卡片颜色</label>
+      <label for="color">Card Color</label>
       <input id="color" name="color" type="text" value="${escapeHtml(data.color || '')}" placeholder="#6d5efc" />
       <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(data.color || '#6d5efc')}"></div>
     </div>
     <div class="field full">
-      <label for="tags">多标签</label>
+      <label for="tags">Tags</label>
       <input id="tags" name="tags" type="text" value="${escapeHtml(tagsToInput(data.tags))}" placeholder="tag1, tag2, tag3" />
     </div>
     <div class="field full">
-      <label for="short_desc">短介绍</label>
+      <label for="short_desc">Short Description</label>
       <textarea id="short_desc" name="short_desc">${escapeHtml(data.short_desc || '')}</textarea>
     </div>
     <div class="field full">
-      <label for="long_desc">长介绍 [Markdown]</label>
+      <label for="long_desc">Long Description [Markdown]</label>
       <textarea id="long_desc" name="long_desc">${escapeHtml(data.long_desc || '')}</textarea>
     </div>
     <div class="form-actions">
-      <button class="secondary-btn" type="button" data-close-form>取消</button>
-      <button class="primary-btn" type="submit">保存</button>
+      <button class="secondary-btn" type="button" data-close-form>Cancel</button>
+      <button class="primary-btn" type="submit">Save</button>
     </div>
   `;
 }
 
+function setupLinkEditor() {
+  if (pageType !== 'music') return;
+  const editorRows = memoryForm.querySelector('#linkEditorRows');
+  const addBtn = memoryForm.querySelector('#addLinkBtn');
+  if (!editorRows || !addBtn) return;
+
+  const bindRemoveEvents = () => {
+    editorRows.querySelectorAll('[data-remove-link]').forEach(button => {
+      button.onclick = () => {
+        const row = button.closest('.link-row');
+        if (row) row.remove();
+      };
+    });
+  };
+
+  bindRemoveEvents();
+  addBtn.addEventListener('click', () => {
+    editorRows.insertAdjacentHTML('beforeend', buildLinkRowHtml());
+    bindRemoveEvents();
+  });
+}
+
+function collectFormLinks() {
+  const rows = memoryForm.querySelectorAll('.link-row');
+  const links = [];
+  for (const row of rows) {
+    const provider = row.querySelector('.link-provider')?.value?.trim() || '';
+    const url = row.querySelector('.link-url')?.value?.trim() || '';
+    if (!provider && !url) continue;
+    if (!url) continue;
+    links.push({ provider, url });
+  }
+  return links;
+}
+
 function openFormModal(mode, item = null) {
   state.mode = mode;
-  formModalTitle.textContent = mode === 'create' ? '新增' : '编辑';
+  formModalTitle.textContent = mode === 'create' ? 'Add' : 'Edit';
   memoryForm.innerHTML = getFormHtml(item);
   formModalOverlay.classList.add('open');
   formModalOverlay.setAttribute('aria-hidden', 'false');
@@ -241,6 +327,8 @@ function openFormModal(mode, item = null) {
   memoryForm.querySelectorAll('[data-close-form]').forEach(btn => {
     btn.addEventListener('click', closeFormModal);
   });
+
+  setupLinkEditor();
 
   const colorInput = memoryForm.querySelector('#color');
   const colorPreview = memoryForm.querySelector('#colorPreview');
@@ -253,15 +341,6 @@ function openFormModal(mode, item = null) {
   memoryForm.onsubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(memoryForm);
-    let links = {};
-    if (pageType === 'music') {
-      try {
-        links = normaliseLinks(formData.get('links_json') || '{}');
-      } catch {
-        alert('外链 JSON 格式错误。');
-        return;
-      }
-    }
 
     const payload = {
       title: (formData.get('title') || '').toString().trim(),
@@ -275,7 +354,7 @@ function openFormModal(mode, item = null) {
     if (pageType === 'music') {
       payload.icon_url = (formData.get('icon_url') || '').toString().trim();
       payload.artist = (formData.get('artist') || '').toString().trim();
-      payload.links = links;
+      payload.links = collectFormLinks();
     }
 
     const targetId = item?.id;
@@ -289,7 +368,8 @@ function openFormModal(mode, item = null) {
     });
 
     if (!response.ok) {
-      alert('保存失败，请检查输入。');
+      const errorText = await response.text();
+      alert(`Save failed: ${errorText}`);
       return;
     }
 
@@ -327,7 +407,7 @@ async function confirmDelete() {
   if (!state.pendingDeleteId) return;
   const response = await fetch(`${apiBase}/${state.pendingDeleteId}`, { method: 'DELETE' });
   if (!response.ok) {
-    alert('删除失败。');
+    alert('Delete failed.');
     return;
   }
 
@@ -349,6 +429,16 @@ function applySearch() {
     closeDetail();
   }
   renderCards();
+}
+
+async function loadLinkOptions() {
+  if (pageType !== 'music') return;
+  const response = await fetch('/api/config/link-options');
+  if (!response.ok) {
+    throw new Error('Failed to load link options.');
+  }
+  const data = await response.json();
+  state.linkOptions = Array.isArray(data?.items) ? data.items : [];
 }
 
 async function loadItems() {
@@ -393,4 +483,14 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-loadItems();
+async function init() {
+  if (pageType === 'music') {
+    await loadLinkOptions();
+  }
+  await loadItems();
+}
+
+init().catch((err) => {
+  console.error(err);
+  alert('Initialization failed.');
+});
