@@ -4,6 +4,8 @@ const supportedLocales = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'];
 const defaultLocale = 'zh-Hans';
 const localeStorageKey = 'memory_space_locale';
 const appVersion = window.__APP_VERSION__ || 'dev';
+const themeStorageKey = 'memory_space_theme_mode';
+const statusPollIntervalMs = 15000;
 
 const fallbackColorConfig = {
   default_music: '#6d5efc',
@@ -47,8 +49,16 @@ const state = {
   searchFields: new Set(defaultSearchFields),
   locale: defaultLocale,
   messages: {},
+  themeMode: 'system',
+  systemStatus: {
+    latestVersion: '',
+    versionMatched: null,
+    serviceHealthy: null,
+  },
 };
 let currentMarkdownEditor = null;
+let statusPollTimer = null;
+const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 
 const detailPanel = document.getElementById('detailPanel');
 const detailInner = document.getElementById('detailInner');
@@ -77,6 +87,114 @@ const escapeHtml = (value) => String(value ?? '')
 
 function t(key, fallback = '') {
   return state.messages[key] || fallback || key;
+}
+
+function normalizeThemeMode(raw) {
+  const value = (raw || '').toString().trim();
+  return ['light', 'dark', 'system'].includes(value) ? value : 'system';
+}
+
+function resolveThemeMode(mode) {
+  if (mode === 'system') {
+    return colorSchemeMedia.matches ? 'dark' : 'light';
+  }
+  return mode;
+}
+
+function updateThemeControlUI() {
+  const wrap = document.getElementById('themeWrap');
+  if (!wrap) return;
+  const buttons = wrap.querySelectorAll('.theme-option');
+  buttons.forEach((button) => {
+    const mode = button.getAttribute('data-theme-mode');
+    const active = mode === state.themeMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function applyTheme(mode, { persist = true } = {}) {
+  state.themeMode = normalizeThemeMode(mode);
+  const resolved = resolveThemeMode(state.themeMode);
+  document.documentElement.setAttribute('data-theme', resolved);
+  if (persist) {
+    localStorage.setItem(themeStorageKey, state.themeMode);
+  }
+  updateThemeControlUI();
+}
+
+function updateSystemStatusUI() {
+  const versionText = document.getElementById('versionStatusText');
+  const versionDot = document.getElementById('versionStatusDot');
+  const healthText = document.getElementById('healthStatusText');
+  const healthDot = document.getElementById('healthStatusDot');
+  if (!versionText || !versionDot || !healthText || !healthDot) return;
+
+  const latestVersion = state.systemStatus.latestVersion || appVersion;
+  const versionLabel = t('status.version', '版本');
+  const healthLabel = t('status.health', '服务状态');
+  const versionStateText = state.systemStatus.versionMatched === null
+    ? t('status.checking', '检测中')
+    : (state.systemStatus.versionMatched
+      ? t('status.synced', '一致')
+      : t('status.outdated', '需刷新'));
+  const healthStateText = state.systemStatus.serviceHealthy === null
+    ? t('status.checking', '检测中')
+    : (state.systemStatus.serviceHealthy
+      ? t('status.normal', '正常')
+      : t('status.abnormal', '异常'));
+
+  versionText.textContent = `${versionLabel} ${latestVersion} · ${versionStateText}`;
+  healthText.textContent = `${healthLabel} ${healthStateText}`;
+
+  versionDot.className = `status-dot ${state.systemStatus.versionMatched === false ? 'bad' : (state.systemStatus.versionMatched === true ? 'good' : 'pending')}`;
+  healthDot.className = `status-dot ${state.systemStatus.serviceHealthy === false ? 'bad' : (state.systemStatus.serviceHealthy === true ? 'good' : 'pending')}`;
+}
+
+async function loadSystemStatus() {
+  try {
+    const response = await fetch('/api/system/status', { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`status check failed: ${response.status}`);
+    }
+    const data = await response.json();
+    const latestVersion = (data?.latest_version || '').toString().trim();
+    state.systemStatus.latestVersion = latestVersion || appVersion;
+    state.systemStatus.versionMatched = !!latestVersion && latestVersion === appVersion;
+    state.systemStatus.serviceHealthy = data?.service_status === 'ok';
+  } catch (error) {
+    console.error(error);
+    state.systemStatus.serviceHealthy = false;
+    state.systemStatus.versionMatched = null;
+  }
+  updateSystemStatusUI();
+}
+
+function startSystemStatusPolling() {
+  if (statusPollTimer) {
+    window.clearInterval(statusPollTimer);
+  }
+  void loadSystemStatus();
+  statusPollTimer = window.setInterval(() => {
+    void loadSystemStatus();
+  }, statusPollIntervalMs);
+}
+
+function initThemeMode() {
+  const savedMode = normalizeThemeMode(localStorage.getItem(themeStorageKey));
+  applyTheme(savedMode, { persist: false });
+  localStorage.setItem(themeStorageKey, savedMode);
+
+  const listener = () => {
+    if (state.themeMode === 'system') {
+      applyTheme('system', { persist: false });
+    }
+  };
+  if (typeof colorSchemeMedia.addEventListener === 'function') {
+    colorSchemeMedia.addEventListener('change', listener);
+  } else if (typeof colorSchemeMedia.addListener === 'function') {
+    colorSchemeMedia.addListener(listener);
+  }
 }
 
 function textOrEmpty(value) {
@@ -810,6 +928,8 @@ function renderSearchFilterControl() {
 
 function renderToolbarControls() {
   if (!toolbar || !addBtn) return;
+  document.getElementById('statusWrap')?.remove();
+  document.getElementById('themeWrap')?.remove();
   document.getElementById('switchPageBtn')?.remove();
   document.getElementById('langWrap')?.remove();
 
@@ -824,6 +944,44 @@ function renderToolbarControls() {
     window.location.href = pageType === 'music' ? '/mind' : '/music';
   });
   toolbar.insertBefore(switchBtn, addBtn);
+
+  const statusWrap = document.createElement('div');
+  statusWrap.className = 'status-wrap';
+  statusWrap.id = 'statusWrap';
+  statusWrap.innerHTML = `
+    <div class="status-pill">
+      <span class="status-dot pending" id="versionStatusDot"></span>
+      <span id="versionStatusText">${escapeHtml(t('status.version', '版本'))} ${escapeHtml(appVersion)} · ${escapeHtml(t('status.checking', '检测中'))}</span>
+    </div>
+    <div class="status-pill">
+      <span class="status-dot pending" id="healthStatusDot"></span>
+      <span id="healthStatusText">${escapeHtml(t('status.health', '服务状态'))} ${escapeHtml(t('status.checking', '检测中'))}</span>
+    </div>
+  `;
+  toolbar.insertBefore(statusWrap, switchBtn);
+
+  const themeWrap = document.createElement('div');
+  themeWrap.className = 'theme-wrap';
+  themeWrap.id = 'themeWrap';
+  themeWrap.innerHTML = `
+    <button class="icon-btn theme-option" type="button" data-theme-mode="light" title="${escapeHtml(t('theme.light', '白天模式'))}" aria-label="${escapeHtml(t('theme.light', '白天模式'))}">
+      ☀
+    </button>
+    <button class="icon-btn theme-option" type="button" data-theme-mode="dark" title="${escapeHtml(t('theme.dark', '黑夜模式'))}" aria-label="${escapeHtml(t('theme.dark', '黑夜模式'))}">
+      ☾
+    </button>
+    <button class="icon-btn theme-option" type="button" data-theme-mode="system" title="${escapeHtml(t('theme.system', '跟随系统'))}" aria-label="${escapeHtml(t('theme.system', '跟随系统'))}">
+      ◐
+    </button>
+  `;
+  toolbar.insertBefore(themeWrap, switchBtn);
+
+  themeWrap.querySelectorAll('.theme-option').forEach((button) => {
+    button.addEventListener('click', () => {
+      const mode = button.getAttribute('data-theme-mode') || 'system';
+      applyTheme(mode);
+    });
+  });
 
   const langWrap = document.createElement('div');
   langWrap.className = 'lang-wrap';
@@ -857,6 +1015,9 @@ function renderToolbarControls() {
       langMenu.hidden = true;
     }
   });
+
+  updateThemeControlUI();
+  updateSystemStatusUI();
 }
 
 function applyStaticTexts() {
@@ -967,10 +1128,12 @@ window.addEventListener('keydown', (event) => {
 });
 
 async function init() {
+  initThemeMode();
   await loadUiConfig();
   const preferredLocale = localStorage.getItem(localeStorageKey) || defaultLocale;
   await setLocale(preferredLocale);
   await loadItems();
+  startSystemStatusPolling();
 }
 
 init().catch((err) => {

@@ -1,5 +1,34 @@
 from __future__ import annotations
 
+import configparser
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_FILE = BASE_DIR / 'config.cfg'
+DEFAULT_APP_VERSION = 'dev'
+
+
+def _load_runtime_config() -> configparser.ConfigParser:
+    parser = configparser.ConfigParser()
+    parser.read(CONFIG_FILE, encoding='utf-8')
+    return parser
+
+
+def _load_app_version() -> str:
+    parser = _load_runtime_config()
+    if parser.has_option('app', 'version'):
+        return parser.get('app', 'version').strip() or DEFAULT_APP_VERSION
+    if parser.has_option('DEFAULT', 'version'):
+        return parser.get('DEFAULT', 'version').strip() or DEFAULT_APP_VERSION
+    return DEFAULT_APP_VERSION
+
+
+def get_app_version() -> str:
+    return _load_app_version()
+
+
+APP_VERSION = _load_app_version()
+
 LINK_OPTIONS: list[dict[str, object]] = [
     {
         'provider': 'spotify',

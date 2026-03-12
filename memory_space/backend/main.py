@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import COLOR_CONFIG, LINK_OPTIONS
+from config import COLOR_CONFIG, LINK_OPTIONS, get_app_version
 from db import execute, fetch_all, fetch_one, init_db
 from schemas import MindMemoryIn, MusicMemoryIn
 
@@ -67,19 +68,33 @@ async def disable_cache_for_pages_and_static(request, call_next):
     return response
 
 
+def render_page(filename: str) -> HTMLResponse:
+    app_version = get_app_version()
+    html = (FRONTEND_DIR / filename).read_text(encoding='utf-8')
+    html = re.sub(
+        r'window\.__APP_VERSION__\s*=\s*"[^"]*"',
+        f'window.__APP_VERSION__ = "{app_version}"',
+        html,
+        count=1,
+    )
+    html = re.sub(r'(/static/css/style\.css\?v=)[^"]+', rf'\g<1>{app_version}', html, count=1)
+    html = re.sub(r'(/static/js/app\.js\?v=)[^"]+', rf'\g<1>{app_version}', html, count=1)
+    return HTMLResponse(content=html)
+
+
 @app.get('/')
-def root() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / 'music.html')
+def root() -> HTMLResponse:
+    return render_page('music.html')
 
 
 @app.get('/music')
-def music_page() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / 'music.html')
+def music_page() -> HTMLResponse:
+    return render_page('music.html')
 
 
 @app.get('/mind')
-def mind_page() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / 'mind.html')
+def mind_page() -> HTMLResponse:
+    return render_page('mind.html')
 
 
 @app.get('/api/config/link-options')
@@ -92,6 +107,14 @@ def get_ui_config() -> dict[str, object]:
     return {
         'link_options': LINK_OPTIONS,
         'color_config': COLOR_CONFIG,
+    }
+
+
+@app.get('/api/system/status')
+def get_system_status() -> dict[str, object]:
+    return {
+        'latest_version': get_app_version(),
+        'service_status': 'ok',
     }
 
 
