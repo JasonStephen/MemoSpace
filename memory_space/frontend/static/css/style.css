@@ -611,6 +611,14 @@ body.panel-open .detail-panel { transform: translateX(0); }
   line-height: 1.7;
 }
 
+.detail-short-desc {
+  margin: 16px 0 0;
+  color: var(--subtext);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .detail-actions { display: flex; gap: 10px; margin-top: 18px; }
 
 .panel-close {

@@ -479,6 +479,8 @@ function openDetail(item) {
       ? `<img class="detail-avatar" src="${escapeHtml(item.icon_url)}" alt="avatar" onerror="this.outerHTML='<div class=&quot;detail-avatar&quot;>${escapeHtml(t('common.empty', 'Empty'))}</div>'" />`
       : `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`)
     : '';
+  const shortDesc = textOrEmpty(item.short_desc);
+  const longDesc = textOrEmpty(item.long_desc);
 
   detailInner.innerHTML = `
     <div class="detail-header">
@@ -491,7 +493,8 @@ function openDetail(item) {
         ${pageType === 'music' ? renderLinkList(item.links) : ''}
       </div>
     </div>
-    <div class="detail-markdown">${marked.parse(textOrEmpty(item.long_desc || item.short_desc))}</div>
+    <p class="detail-short-desc">${escapeHtml(shortDesc)}</p>
+    <div class="detail-markdown">${marked.parse(longDesc)}</div>
     <div class="detail-actions">
       <button class="danger-btn" type="button" id="detailDeleteBtn">${escapeHtml(t('detail.del', 'Delete'))}</button>
       <button class="secondary-btn" type="button" id="detailEditBtn">${escapeHtml(t('detail.edit', 'Edit'))}</button>
