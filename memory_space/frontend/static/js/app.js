@@ -1,6 +1,6 @@
 ﻿const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
-const supportedLocales = ['zh-CN', 'zh-TW', 'en'];
+const supportedLocales = ['zh-CN', 'zh-TW', 'en', 'ja', 'ko'];
 const defaultLocale = 'zh-CN';
 const localeStorageKey = 'memory_space_locale';
 

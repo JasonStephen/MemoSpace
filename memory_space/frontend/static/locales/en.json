@@ -52,5 +52,7 @@
   "searchField.memory_time": "Time",
   "lang.zh-CN": "简体中文",
   "lang.zh-TW": "繁體中文",
-  "lang.en": "English"
+  "lang.en": "English",
+  "lang.ja": "日本語",
+  "lang.ko": "한국어"
 }
