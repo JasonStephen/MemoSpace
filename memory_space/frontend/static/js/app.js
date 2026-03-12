@@ -442,6 +442,43 @@ function renderLinkList(links) {
   `;
 }
 
+function parseSpotifyEmbedPath(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const supportedTypes = new Set(['track', 'album', 'playlist', 'episode', 'show', 'artist']);
+    const typeIndex = parts.findIndex(part => supportedTypes.has(part));
+    if (typeIndex < 0 || !parts[typeIndex + 1]) return '';
+    return `${parts[typeIndex]}/${parts[typeIndex + 1]}`;
+  } catch {
+    return '';
+  }
+}
+
+function renderSpotifyEmbed(links) {
+  if (pageType !== 'music') return '';
+  const spotifyLink = normaliseLinks(links).find(link => link.provider === 'spotify');
+  if (!spotifyLink) return '';
+  const embedPath = parseSpotifyEmbedPath(spotifyLink.url);
+  if (!embedPath) return '';
+  const embedSrc = `https://open.spotify.com/embed/${embedPath}?utm_source=generator`;
+  return `
+    <div class="detail-spotify-embed">
+      <iframe
+        data-testid="embed-iframe"
+        style="border-radius:12px"
+        src="${escapeHtml(embedSrc)}"
+        width="100%"
+        height="152"
+        frameborder="0"
+        allowfullscreen
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"
+      ></iframe>
+    </div>
+  `;
+}
+
 function parseNeteaseContent(rawUrl) {
   try {
     const url = new URL(rawUrl);
@@ -537,6 +574,7 @@ function openDetail(item) {
       </div>
     </div>
     <p class="detail-short-desc">${escapeHtml(shortDesc)}</p>
+    ${renderSpotifyEmbed(item.links)}
     <div class="detail-markdown">${marked.parse(longDesc)}</div>
     <div class="detail-actions">
       <button class="danger-btn" type="button" id="detailDeleteBtn">${escapeHtml(t('detail.del', 'Delete'))}</button>

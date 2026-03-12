@@ -664,6 +664,16 @@ body.panel-open .detail-panel { transform: translateX(0); }
   word-break: break-word;
 }
 
+.detail-spotify-embed {
+  margin-top: 16px;
+}
+
+.detail-spotify-embed iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+
 .detail-actions { display: flex; gap: 10px; margin-top: 18px; }
 
 .panel-close {
