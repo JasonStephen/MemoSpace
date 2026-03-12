@@ -1268,10 +1268,6 @@ document.querySelectorAll('[data-close-form]').forEach(btn => {
   btn.addEventListener('click', closeFormModal);
 });
 
-formModalOverlay.addEventListener('click', (event) => {
-  if (event.target === formModalOverlay) closeFormModal();
-});
-
 deleteModalOverlay.addEventListener('click', (event) => {
   if (event.target === deleteModalOverlay) closeDeleteModal();
 });
