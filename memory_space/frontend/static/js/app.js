@@ -3,6 +3,7 @@ const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
 const supportedLocales = ['zh-CN', 'zh-TW', 'en', 'ja', 'ko'];
 const defaultLocale = 'zh-CN';
 const localeStorageKey = 'memory_space_locale';
+const appVersion = window.__APP_VERSION__ || 'dev';
 
 const fallbackColorConfig = {
   default_music: '#6d5efc',
@@ -466,6 +467,7 @@ function setupMarkdownEditor() {
 
   currentMarkdownEditor = new window.EasyMDE({
     element: longDescEl,
+    minHeight: '0px',
     spellChecker: false,
     status: false,
     autofocus: false,
@@ -879,7 +881,7 @@ function applyStaticTexts() {
 
 async function loadLocaleMessages(locale) {
   const selected = supportedLocales.includes(locale) ? locale : defaultLocale;
-  const response = await fetch(`/static/locales/${selected}.json`);
+  const response = await fetch(`/static/locales/${selected}.json?v=${encodeURIComponent(appVersion)}`);
   if (!response.ok) {
     throw new Error(`Locale file not found: ${selected}`);
   }

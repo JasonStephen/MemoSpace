@@ -607,8 +607,43 @@ body.panel-open .detail-panel { transform: translateX(0); }
 }
 
 .EasyMDEContainer .CodeMirror {
-  min-height: 180px;
-  height: 220px;
+  height: 300px;
+  max-height: 300px;
+}
+
+.EasyMDEContainer .CodeMirror-scroll {
+  height: 100% !important;
+  max-height: none;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Hide CodeMirror's synthetic scrollbar layers and keep only content scrolling */
+.EasyMDEContainer .CodeMirror-vscrollbar,
+.EasyMDEContainer .CodeMirror-hscrollbar,
+.EasyMDEContainer .CodeMirror-scrollbar-filler,
+.EasyMDEContainer .CodeMirror-gutter-filler {
+  display: none !important;
+}
+
+.EasyMDEContainer .CodeMirror-scroll {
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.EasyMDEContainer .CodeMirror-sizer {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+  border-right: 0 !important;
+}
+
+/* Use a virtual tail row to prevent last-line clipping without margin/padding hacks */
+.EasyMDEContainer .CodeMirror-code::after {
+  content: '';
+  display: block;
+  height: 12px;
 }
 
 .EasyMDEContainer .editor-toolbar {
@@ -622,8 +657,8 @@ body.panel-open .detail-panel { transform: translateX(0); }
   background: rgba(255,255,255,0.95);
   padding: 12px 14px;
   min-height: 120px;
-  max-height: 260px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   line-height: 1.65;
 }
 

@@ -56,6 +56,17 @@ def startup_event() -> None:
     init_db()
 
 
+@app.middleware('http')
+async def disable_cache_for_pages_and_static(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path in {'/', '/music', '/mind'} or path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
 @app.get('/')
 def root() -> FileResponse:
     return FileResponse(FRONTEND_DIR / 'music.html')
