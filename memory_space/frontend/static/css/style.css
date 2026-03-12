@@ -401,7 +401,12 @@ body.panel-open .detail-panel { transform: translateX(0); }
   padding: 24px;
 }
 
-.detail-header { display: flex; gap: 16px; margin-bottom: 18px; }
+.detail-header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-left: 44px;
+}
 
 .detail-avatar {
   width: 88px;
@@ -480,11 +485,18 @@ body.panel-open .detail-panel { transform: translateX(0); }
 .panel-close {
   position: absolute;
   top: 14px;
-  right: 14px;
+  left: 14px;
+  right: auto;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  padding: 8px 14px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  background: transparent;
+  color: #2b3345;
   z-index: 40;
 }
 
@@ -508,12 +520,40 @@ body.panel-open .detail-panel { transform: translateX(0); }
   max-height: calc(100vh - 48px);
   overflow: auto;
   background: rgba(255,255,255,0.96);
-  border-radius: 28px;
+  border-radius: 20px;
   border: 1px solid rgba(255,255,255,0.7);
   box-shadow: var(--shadow);
   transform: scale(0.94);
   opacity: 0;
   transition: transform var(--transition), opacity var(--transition);
+}
+
+/* Keep modal scrollbars visually aligned with rounded corners */
+.form-modal {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+  scrollbar-gutter: stable;
+}
+
+.form-modal::-webkit-scrollbar {
+  width: 10px;
+}
+
+.form-modal::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 10px 0;
+}
+
+.form-modal::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.55);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.form-modal::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.65);
+  background-clip: padding-box;
 }
 
 .modal-overlay.open .modal-card { transform: scale(1); opacity: 1; }

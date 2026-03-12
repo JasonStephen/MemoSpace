@@ -332,7 +332,7 @@ function getColorFieldHtml(currentColor) {
   const normalizedCurrent = normaliseHexColor(currentColor || getDefaultColor());
   const hasPreset = presets.some(item => normaliseHexColor(item.value) === normalizedCurrent);
   const firstPreset = normaliseHexColor(presets[0]?.value || getDefaultColor()) || getDefaultColor();
-  const mode = 'preset';
+  const mode = hasPreset ? 'preset' : (state.colorConfig.allow_custom ? 'custom' : 'preset');
   const selectedPreset = hasPreset ? normalizedCurrent : firstPreset;
   const customHidden = mode === 'custom' ? '' : 'hidden';
   const customColor = normalizedCurrent || getDefaultColor();
@@ -356,7 +356,7 @@ function getColorFieldHtml(currentColor) {
         <input id="custom_color_hex" name="custom_color_hex" type="text" value="${escapeHtml(customColor)}" placeholder="#RRGGBB or #RGB" />
       </div>
       ` : ''}
-      <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(selectedPreset)}"></div>
+      <div class="color-preview" id="colorPreview" style="--preview-color:${escapeHtml(mode === 'custom' ? customColor : selectedPreset)}"></div>
     </div>
   `;
 }
@@ -865,7 +865,9 @@ function applyStaticTexts() {
   if (pageTitleEl) pageTitleEl.textContent = title;
   searchInput.placeholder = t('common.search', 'Search');
   addBtn.textContent = t('common.add', 'Add');
-  panelCloseBtn.textContent = t('common.close', 'Close');
+  panelCloseBtn.textContent = '☰';
+  panelCloseBtn.title = t('common.close', 'Close');
+  panelCloseBtn.setAttribute('aria-label', t('common.close', 'Close'));
   if (deleteModalTitleEl) deleteModalTitleEl.textContent = t('common.deleteTitle', 'Confirm Delete');
   if (deleteModalTextEl) deleteModalTextEl.textContent = t('common.deleteText', 'Deletion is irreversible. Continue?');
   if (deleteCancelBtn) deleteCancelBtn.textContent = t('common.cancel', 'Cancel');
