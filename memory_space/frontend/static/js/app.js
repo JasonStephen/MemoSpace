@@ -396,7 +396,7 @@ function renderLinkList(links) {
   }).join('')}</div>
       ${hasNeteaseLink ? `
       <div class="link-launch-hint" id="linkLaunchHint" hidden>
-        <a id="linkFallbackAnchor" target="_blank" rel="noreferrer">若未启动，单击前往</a>
+        <a id="linkFallbackAnchor" target="_blank" rel="noreferrer">${escapeHtml(t('link.launchFallback', 'If not launched, click to open.'))}</a>
       </div>
       ` : ''}
     </div>
@@ -1079,12 +1079,14 @@ function arrangeToolbarLayout() {
   const extraRow = ensureToolbarRow('toolbarExtraRow');
   if (!statusRow || !actionRow || !extraRow) return;
 
-  const compact = window.matchMedia('(max-width: 720px)').matches;
-  const searchBox = toolbar.querySelector('.search-box');
+  const compact = window.matchMedia('(max-width: 1024px)').matches;
+  toolbar.classList.toggle('compact-layout', compact);
+  toolbar.classList.toggle('wide-layout', !compact);
+  const searchBox = searchInput?.closest('.search-box') || toolbar.querySelector('.search-box');
   const filterWrap = document.getElementById('searchFilterWrap');
   const hiddenSpaceBtn = document.getElementById('hiddenSpaceBtn');
   const switchBtn = document.getElementById('switchPageBtn');
-  const addButton = document.getElementById('addBtn');
+  const addButton = addBtn;
   const statusWrap = document.getElementById('statusWrap');
   const themeWrap = document.getElementById('themeWrap');
   const langWrap = document.getElementById('langWrap');
@@ -1119,6 +1121,14 @@ function bindToolbarLayout() {
 
 function renderToolbarControls() {
   if (!toolbar || !addBtn) return;
+  const searchBoxEl = searchInput?.closest('.search-box');
+  if (searchBoxEl && searchBoxEl.parentElement !== toolbar) {
+    toolbar.appendChild(searchBoxEl);
+  }
+  if (addBtn.parentElement !== toolbar) {
+    toolbar.appendChild(addBtn);
+  }
+
   document.getElementById('toolbarStatusRow')?.remove();
   document.getElementById('toolbarActionRow')?.remove();
   document.getElementById('toolbarExtraRow')?.remove();
