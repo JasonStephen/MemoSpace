@@ -84,7 +84,7 @@ body.panel-open .detail-panel { transform: translateX(0); }
 
 .topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
@@ -101,7 +101,27 @@ body.panel-open .detail-panel { transform: translateX(0); }
   flex: 0 0 auto;
 }
 
-.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+.toolbar {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.toolbar-row[hidden] {
+  display: none;
+}
 
 .search-box {
   position: relative;
@@ -114,8 +134,10 @@ body.panel-open .detail-panel { transform: translateX(0); }
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
   flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 
 .status-pill {
@@ -896,9 +918,9 @@ html[data-theme="dark"] .primary-btn {
     align-items: stretch;
   }
 
-  .toolbar, .search-box { width: 100%; }
+  .toolbar, .toolbar-row, .search-box { width: 100%; }
 
-  .toolbar { flex-direction: row; }
+  .toolbar { align-items: flex-end; }
   .search-box { min-width: 0; }
   .status-wrap { width: auto; }
   .status-pill { width: auto; justify-content: flex-start; }
@@ -906,19 +928,11 @@ html[data-theme="dark"] .primary-btn {
   .theme-option { flex: 0 0 auto; max-width: none; }
   .filter-btn { width: 100%; }
   .filter-popover { right: auto; left: 0; }
-  .nav-btn, .lang-btn { width: 100%; }
+  .nav-btn, .lang-btn { width: auto; }
   .lang-menu { right: auto; left: 0; }
 
   .memory-form { grid-template-columns: 1fr; }
   .detail-markdown { max-height: none; }
   .link-row { grid-template-columns: 1fr; }
   .custom-color-wrap { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 1320px) {
-  .status-wrap { order: 20; }
-}
-
-@media (max-width: 1100px) {
-  .theme-wrap { order: 21; }
 }

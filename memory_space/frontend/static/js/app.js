@@ -58,6 +58,7 @@ const state = {
 };
 let currentMarkdownEditor = null;
 let statusPollTimer = null;
+let toolbarLayoutBound = false;
 const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 
 const detailPanel = document.getElementById('detailPanel');
@@ -892,8 +893,13 @@ function renderSearchFilterControl() {
       `).join('')}
     </div>
   `;
-  const switchBtn = document.getElementById('switchPageBtn');
-  toolbar.insertBefore(wrap, switchBtn || addBtn);
+  const actionRow = document.getElementById('toolbarActionRow');
+  if (actionRow) {
+    actionRow.appendChild(wrap);
+  } else {
+    const switchBtn = document.getElementById('switchPageBtn');
+    toolbar.insertBefore(wrap, switchBtn || addBtn);
+  }
 
   const filterBtn = wrap.querySelector('#filterBtn');
   const popover = wrap.querySelector('#filterPopover');
@@ -924,10 +930,71 @@ function renderSearchFilterControl() {
       popover.hidden = true;
     }
   });
+
+  arrangeToolbarLayout();
+}
+
+function ensureToolbarRow(id) {
+  if (!toolbar) return null;
+  let row = document.getElementById(id);
+  if (!row) {
+    row = document.createElement('div');
+    row.id = id;
+    row.className = 'toolbar-row';
+  }
+  toolbar.appendChild(row);
+  return row;
+}
+
+function arrangeToolbarLayout() {
+  if (!toolbar) return;
+  const statusRow = ensureToolbarRow('toolbarStatusRow');
+  const actionRow = ensureToolbarRow('toolbarActionRow');
+  const extraRow = ensureToolbarRow('toolbarExtraRow');
+  if (!statusRow || !actionRow || !extraRow) return;
+
+  const compact = window.matchMedia('(max-width: 720px)').matches;
+  const searchBox = toolbar.querySelector('.search-box');
+  const filterWrap = document.getElementById('searchFilterWrap');
+  const switchBtn = document.getElementById('switchPageBtn');
+  const addButton = document.getElementById('addBtn');
+  const statusWrap = document.getElementById('statusWrap');
+  const themeWrap = document.getElementById('themeWrap');
+  const langWrap = document.getElementById('langWrap');
+
+  [statusWrap, themeWrap, langWrap].forEach((node) => {
+    if (node) statusRow.appendChild(node);
+  });
+
+  if (compact) {
+    [searchBox, filterWrap, addButton].forEach((node) => {
+      if (node) actionRow.appendChild(node);
+    });
+    if (switchBtn) {
+      extraRow.appendChild(switchBtn);
+      extraRow.hidden = false;
+    } else {
+      extraRow.hidden = true;
+    }
+  } else {
+    [searchBox, filterWrap, switchBtn, addButton].forEach((node) => {
+      if (node) actionRow.appendChild(node);
+    });
+    extraRow.hidden = true;
+  }
+}
+
+function bindToolbarLayout() {
+  if (toolbarLayoutBound) return;
+  toolbarLayoutBound = true;
+  window.addEventListener('resize', arrangeToolbarLayout);
 }
 
 function renderToolbarControls() {
   if (!toolbar || !addBtn) return;
+  document.getElementById('toolbarStatusRow')?.remove();
+  document.getElementById('toolbarActionRow')?.remove();
+  document.getElementById('toolbarExtraRow')?.remove();
   document.getElementById('statusWrap')?.remove();
   document.getElementById('themeWrap')?.remove();
   document.getElementById('switchPageBtn')?.remove();
@@ -943,7 +1010,7 @@ function renderToolbarControls() {
   switchBtn.addEventListener('click', () => {
     window.location.href = pageType === 'music' ? '/mind' : '/music';
   });
-  toolbar.insertBefore(switchBtn, addBtn);
+  toolbar.appendChild(switchBtn);
 
   const statusWrap = document.createElement('div');
   statusWrap.className = 'status-wrap';
@@ -958,7 +1025,7 @@ function renderToolbarControls() {
       <span id="healthStatusText">${escapeHtml(t('status.health', '服务状态'))} ${escapeHtml(t('status.checking', '检测中'))}</span>
     </div>
   `;
-  toolbar.insertBefore(statusWrap, switchBtn);
+  toolbar.appendChild(statusWrap);
 
   const themeWrap = document.createElement('div');
   themeWrap.className = 'theme-wrap';
@@ -974,7 +1041,7 @@ function renderToolbarControls() {
       ◐
     </button>
   `;
-  toolbar.insertBefore(themeWrap, switchBtn);
+  toolbar.appendChild(themeWrap);
 
   themeWrap.querySelectorAll('.theme-option').forEach((button) => {
     button.addEventListener('click', () => {
@@ -987,14 +1054,14 @@ function renderToolbarControls() {
   langWrap.className = 'lang-wrap';
   langWrap.id = 'langWrap';
   langWrap.innerHTML = `
-    <button class="secondary-btn lang-btn" type="button" id="langBtn">${escapeHtml(t(`lang.${state.locale}`, state.locale))}</button>
+    <button class="secondary-btn lang-btn" type="button" id="langBtn">EN/文</button>
     <div class="lang-menu" id="langMenu" hidden>
       ${supportedLocales.map(locale => `
         <button type="button" class="lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(t(`lang.${locale}`, locale))}</button>
       `).join('')}
     </div>
   `;
-  addBtn.insertAdjacentElement('afterend', langWrap);
+  toolbar.appendChild(langWrap);
 
   const langBtn = langWrap.querySelector('#langBtn');
   const langMenu = langWrap.querySelector('#langMenu');
@@ -1018,6 +1085,8 @@ function renderToolbarControls() {
 
   updateThemeControlUI();
   updateSystemStatusUI();
+  arrangeToolbarLayout();
+  bindToolbarLayout();
 }
 
 function applyStaticTexts() {
