@@ -1,7 +1,7 @@
 {
   "langName": "English",
-  "page.music.title": "Music Memory Space",
-  "page.mind.title": "Mind Memory Space",
+  "page.music.title": "Music MemoSpace",
+  "page.mind.title": "Mind MemoSpace",
   "common.search": "Search",
   "common.add": "Add",
   "common.edit": "Edit",
@@ -50,8 +50,8 @@
   "searchField.long_desc": "Long Desc",
   "searchField.links": "Links",
   "searchField.memory_time": "Time",
-  "lang.zh-CN": "简体中文",
-  "lang.zh-TW": "繁體中文",
+  "lang.zh-Hans": "简体中文",
+  "lang.zh-Hant": "繁體中文",
   "lang.en": "English",
   "lang.ja": "日本語",
   "lang.ko": "한국어"

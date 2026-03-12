@@ -50,8 +50,8 @@
   "searchField.long_desc": "长描述",
   "searchField.links": "外链",
   "searchField.memory_time": "时间",
-  "lang.zh-CN": "简体中文",
-  "lang.zh-TW": "繁體中文",
+  "lang.zh-Hans": "简体中文",
+  "lang.zh-Hant": "繁體中文",
   "lang.en": "English",
   "lang.ja": "日本語",
   "lang.ko": "한국어"

@@ -1,7 +1,7 @@
 ﻿const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
-const supportedLocales = ['zh-CN', 'zh-TW', 'en', 'ja', 'ko'];
-const defaultLocale = 'zh-CN';
+const supportedLocales = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'];
+const defaultLocale = 'zh-Hans';
 const localeStorageKey = 'memory_space_locale';
 const appVersion = window.__APP_VERSION__ || 'dev';
 
@@ -861,7 +861,7 @@ function renderToolbarControls() {
 
 function applyStaticTexts() {
   const titleKey = pageType === 'music' ? 'page.music.title' : 'page.mind.title';
-  const title = t(titleKey, pageType === 'music' ? 'Music Memory Space' : 'Mind Memory Space');
+  const title = t(titleKey, pageType === 'music' ? 'Music MemoSpace' : 'Mind MemoSpace');
   document.title = title;
   document.documentElement.lang = state.locale;
   if (pageTitleEl) pageTitleEl.textContent = title;

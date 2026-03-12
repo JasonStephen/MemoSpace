@@ -18,7 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / 'frontend'
 STATIC_DIR = FRONTEND_DIR / 'static'
 
-app = FastAPI(title='Memory Space')
+app = FastAPI(title='MemoSpace')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],

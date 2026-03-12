@@ -50,8 +50,8 @@
   "searchField.long_desc": "긴 설명",
   "searchField.links": "링크",
   "searchField.memory_time": "시간",
-  "lang.zh-CN": "简体中文",
-  "lang.zh-TW": "繁體中文",
+  "lang.zh-Hans": "简体中文",
+  "lang.zh-Hant": "繁體中文",
   "lang.en": "English",
   "lang.ja": "日本語",
   "lang.ko": "한국어"
