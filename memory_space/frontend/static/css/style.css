@@ -351,6 +351,8 @@ body.panel-open .detail-panel { transform: translateX(0); }
 .grid-shell {
   display: flex;
   justify-content: center;
+  width: 100%;
+  padding: 0 10%;
 }
 
 .memory-grid {
@@ -361,13 +363,11 @@ body.panel-open .detail-panel { transform: translateX(0); }
 }
 
 .music-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  max-width: 840px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
 .mind-grid {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  max-width: 948px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .card {
@@ -968,6 +968,7 @@ html[data-theme="dark"] .primary-btn {
   .detail-markdown { max-height: none; }
   .link-row { grid-template-columns: 1fr; }
   .custom-color-wrap { grid-template-columns: 1fr; }
+  .grid-shell { padding: 0; }
 }
 
 @media (max-width: 640px) {
