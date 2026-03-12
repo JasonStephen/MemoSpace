@@ -546,6 +546,24 @@ body.panel-open .detail-panel { transform: translateX(0); }
   margin-top: 14px;
 }
 
+.link-list-wrap {
+  margin-top: 14px;
+}
+
+.link-list-wrap .link-list {
+  margin-top: 0;
+}
+
+.link-launch-hint {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.link-launch-hint a {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
 .tag-pill, .link-chip { padding: 7px 12px; font-size: 13px; }
 
 .tag-pill {

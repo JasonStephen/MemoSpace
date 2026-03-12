@@ -378,15 +378,99 @@ function renderTagList(tags) {
 function renderLinkList(links) {
   const entries = normaliseLinks(links);
   if (!entries.length) return '';
-  return `<div class="link-list">${entries.map(link => {
+  const hasNeteaseLink = entries.some(link => link.provider === 'netease_music');
+  return `
+    <div class="link-list-wrap">
+      <div class="link-list">${entries.map(link => {
     const option = getLinkOption(link.provider);
     const label = option?.label || link.provider;
     const icon = option?.icon || '';
     const iconHtml = icon
       ? `<img src="${escapeHtml(icon)}" alt="${escapeHtml(label)}" loading="lazy" />`
       : `<span>${escapeHtml(label.slice(0, 1).toUpperCase())}</span>`;
-    return `<a class="link-icon-btn" href="${escapeHtml(link.url)}" title="${escapeHtml(label)}" target="_blank" rel="noreferrer">${iconHtml}</a>`;
-  }).join('')}</div>`;
+    return `<a class="link-icon-btn" href="${escapeHtml(link.url)}" title="${escapeHtml(label)}" target="_blank" rel="noreferrer" data-provider="${escapeHtml(link.provider)}" data-url="${escapeHtml(link.url)}">${iconHtml}</a>`;
+  }).join('')}</div>
+      ${hasNeteaseLink ? `
+      <div class="link-launch-hint" id="linkLaunchHint" hidden>
+        <a id="linkFallbackAnchor" target="_blank" rel="noreferrer">若未启动，单击前往</a>
+      </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function parseNeteaseContent(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    const pickType = (value) => ['song', 'playlist', 'album'].includes(value) ? value : '';
+    let type = '';
+    let id = url.searchParams.get('id') || '';
+
+    if (url.pathname.includes('/song')) type = 'song';
+    if (url.pathname.includes('/playlist')) type = 'playlist';
+    if (url.pathname.includes('/album')) type = 'album';
+
+    if (url.hash) {
+      const hashText = url.hash.replace(/^#\/?/, '');
+      const queryStart = hashText.indexOf('?');
+      const hashPath = queryStart >= 0 ? hashText.slice(0, queryStart) : hashText;
+      const hashQuery = queryStart >= 0 ? hashText.slice(queryStart + 1) : '';
+      const hashType = hashPath.split('/')[0] || '';
+      if (!type) type = pickType(hashType);
+      if (!id && hashQuery) {
+        const params = new URLSearchParams(hashQuery);
+        id = params.get('id') || '';
+      }
+    }
+
+    if (!type) type = 'song';
+    if (!id) return null;
+    return { type, id };
+  } catch {
+    return null;
+  }
+}
+
+function buildNeteaseAppUrl(webUrl) {
+  const content = parseNeteaseContent(webUrl);
+  if (!content) return 'orpheus://';
+  return `orpheus://${content.type}/${content.id}`;
+}
+
+function tryOpenNeteaseApp(linkUrl) {
+  const appUrl = buildNeteaseAppUrl(linkUrl);
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+
+  if (isMobile) {
+    window.location.href = appUrl;
+    return;
+  }
+
+  const probe = document.createElement('iframe');
+  probe.style.display = 'none';
+  probe.src = appUrl;
+  document.body.appendChild(probe);
+  window.setTimeout(() => {
+    probe.remove();
+  }, 1200);
+}
+
+function bindExternalLinkHandlers() {
+  const launchHint = detailInner.querySelector('#linkLaunchHint');
+  const fallbackAnchor = detailInner.querySelector('#linkFallbackAnchor');
+  detailInner.querySelectorAll('.link-icon-btn[data-provider][data-url]').forEach((anchor) => {
+    const provider = anchor.getAttribute('data-provider');
+    const rawUrl = anchor.getAttribute('data-url') || '';
+    if (provider !== 'netease_music') return;
+    anchor.addEventListener('click', (event) => {
+      event.preventDefault();
+      tryOpenNeteaseApp(rawUrl);
+      if (launchHint && fallbackAnchor) {
+        fallbackAnchor.setAttribute('href', rawUrl);
+        launchHint.hidden = false;
+      }
+    });
+  });
 }
 
 function openDetail(item) {
@@ -416,6 +500,7 @@ function openDetail(item) {
 
   document.getElementById('detailDeleteBtn').addEventListener('click', () => openDeleteModal(item.id));
   document.getElementById('detailEditBtn').addEventListener('click', () => openFormModal('edit', item));
+  bindExternalLinkHandlers();
 
   document.body.classList.add('panel-open');
   detailPanel.setAttribute('aria-hidden', 'false');
