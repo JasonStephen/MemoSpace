@@ -755,6 +755,8 @@ body.panel-open .detail-panel { transform: translateX(0); }
   width: 40px;
   height: 40px;
   background: #eef1f7;
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 .memory-form {
@@ -976,8 +978,90 @@ html[data-theme="dark"] .theme-option.active {
   background: #242f45;
 }
 
+html[data-theme="dark"] .icon-btn {
+  color: #dbe7ff;
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+html[data-theme="dark"] .icon-btn:hover {
+  background: #2c3a57;
+}
+
 html[data-theme="dark"] .primary-btn {
   background: #3a5be0;
+}
+
+html[data-theme="dark"] .panel-close {
+  color: #dbe7ff;
+}
+
+html[data-theme="dark"] .status-pill {
+  background: #243148;
+  border-color: rgba(148, 163, 184, 0.32);
+  color: #dbe7ff;
+}
+
+html[data-theme="dark"] .theme-wrap {
+  background: #243148;
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+html[data-theme="dark"] .theme-option {
+  color: #dbe7ff;
+}
+
+html[data-theme="dark"] .card-desc {
+  color: #c2cde2;
+}
+
+html[data-theme="dark"] .memory-form input,
+html[data-theme="dark"] .memory-form textarea,
+html[data-theme="dark"] .memory-form select {
+  color: var(--text);
+  caret-color: var(--text);
+  background: #1b2436;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+html[data-theme="dark"] .memory-form input::placeholder,
+html[data-theme="dark"] .memory-form textarea::placeholder {
+  color: #8fa0be;
+}
+
+html[data-theme="dark"] .custom-color-wrap input[type="color"] {
+  background: #1b2436;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+html[data-theme="dark"] .EasyMDEContainer {
+  background: #1b2436;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+html[data-theme="dark"] .EasyMDEContainer .editor-toolbar {
+  background: #202b40;
+  border-bottom-color: rgba(148, 163, 184, 0.28);
+}
+
+html[data-theme="dark"] .EasyMDEContainer .editor-toolbar > *,
+html[data-theme="dark"] .EasyMDEContainer .editor-toolbar i {
+  color: #c9d4ea !important;
+}
+
+html[data-theme="dark"] .EasyMDEContainer .CodeMirror,
+html[data-theme="dark"] .EasyMDEContainer .CodeMirror-scroll,
+html[data-theme="dark"] .EasyMDEContainer .CodeMirror-gutters,
+html[data-theme="dark"] .EasyMDEContainer .cm-s-easymde.CodeMirror {
+  background: #1b2436 !important;
+  color: var(--text);
+}
+
+html[data-theme="dark"] .EasyMDEContainer .CodeMirror-cursor {
+  border-left-color: #dbe7ff;
+}
+
+html[data-theme="dark"] .EasyMDEContainer .CodeMirror-selected {
+  background: rgba(90, 124, 215, 0.32) !important;
 }
 
 @media (max-width: 1024px) {
