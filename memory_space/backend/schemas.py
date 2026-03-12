@@ -27,3 +27,7 @@ class MindMemoryIn(BaseModel):
     color: str = '#18a999'
     short_desc: str = ''
     long_desc: str = ''
+
+
+class HiddenStatusIn(BaseModel):
+    hidden: bool = False

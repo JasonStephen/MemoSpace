@@ -6,14 +6,14 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import COLOR_CONFIG, LINK_OPTIONS, get_app_version
 from db import execute, fetch_all, fetch_one, init_db
-from schemas import MindMemoryIn, MusicMemoryIn
+from schemas import HiddenStatusIn, MindMemoryIn, MusicMemoryIn
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / 'frontend'
@@ -170,11 +170,21 @@ def validate_links_or_422(links: list[dict[str, str]]) -> None:
 
 
 @app.get('/api/music')
-def list_music() -> list[dict]:
-    rows = fetch_all('SELECT * FROM music_memory ORDER BY COALESCE(memory_time, created_at) DESC, id DESC')
+def list_music(
+    include_hidden: bool = Query(default=False),
+    hidden_only: bool = Query(default=False),
+) -> list[dict]:
+    if hidden_only:
+        query = 'SELECT * FROM music_memory WHERE hidden = 1 ORDER BY COALESCE(memory_time, created_at) DESC, id DESC'
+    elif include_hidden:
+        query = 'SELECT * FROM music_memory ORDER BY COALESCE(memory_time, created_at) DESC, id DESC'
+    else:
+        query = 'SELECT * FROM music_memory WHERE hidden = 0 ORDER BY COALESCE(memory_time, created_at) DESC, id DESC'
+    rows = fetch_all(query)
     for row in rows:
         row['tags'] = json.loads(row.pop('tags_json') or '[]')
         row['links'] = normalise_link_entries(json.loads(row.pop('links_json') or '[]'))
+        row['hidden'] = bool(row.get('hidden', 0))
         row['type'] = 'music'
     return rows
 
@@ -243,11 +253,37 @@ def delete_music(item_id: int) -> dict:
     return {'ok': True}
 
 
+@app.put('/api/music/{item_id}/hidden')
+def update_music_hidden(item_id: int, payload: HiddenStatusIn) -> dict:
+    existing = fetch_one('SELECT id FROM music_memory WHERE id = ?', (item_id,))
+    if not existing:
+        raise HTTPException(status_code=404, detail='Music memory not found.')
+    execute(
+        """
+        UPDATE music_memory
+        SET hidden = ?, updated_at = datetime('now')
+        WHERE id = ?
+        """,
+        (1 if payload.hidden else 0, item_id),
+    )
+    return {'ok': True}
+
+
 @app.get('/api/mind')
-def list_mind() -> list[dict]:
-    rows = fetch_all('SELECT * FROM cognition_memory ORDER BY COALESCE(memory_time, created_at) DESC, id DESC')
+def list_mind(
+    include_hidden: bool = Query(default=False),
+    hidden_only: bool = Query(default=False),
+) -> list[dict]:
+    if hidden_only:
+        query = 'SELECT * FROM cognition_memory WHERE hidden = 1 ORDER BY COALESCE(memory_time, created_at) DESC, id DESC'
+    elif include_hidden:
+        query = 'SELECT * FROM cognition_memory ORDER BY COALESCE(memory_time, created_at) DESC, id DESC'
+    else:
+        query = 'SELECT * FROM cognition_memory WHERE hidden = 0 ORDER BY COALESCE(memory_time, created_at) DESC, id DESC'
+    rows = fetch_all(query)
     for row in rows:
         row['tags'] = json.loads(row.pop('tags_json') or '[]')
+        row['hidden'] = bool(row.get('hidden', 0))
         row['type'] = 'mind'
     return rows
 
@@ -303,6 +339,22 @@ def delete_mind(item_id: int) -> dict:
     if not existing:
         raise HTTPException(status_code=404, detail='Cognitive memory not found.')
     execute('DELETE FROM cognition_memory WHERE id = ?', (item_id,))
+    return {'ok': True}
+
+
+@app.put('/api/mind/{item_id}/hidden')
+def update_mind_hidden(item_id: int, payload: HiddenStatusIn) -> dict:
+    existing = fetch_one('SELECT id FROM cognition_memory WHERE id = ?', (item_id,))
+    if not existing:
+        raise HTTPException(status_code=404, detail='Cognitive memory not found.')
+    execute(
+        """
+        UPDATE cognition_memory
+        SET hidden = ?, updated_at = datetime('now')
+        WHERE id = ?
+        """,
+        (1 if payload.hidden else 0, item_id),
+    )
     return {'ok': True}
 
 

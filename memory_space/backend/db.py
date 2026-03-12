@@ -17,6 +17,10 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    def has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(row['name'] == column for row in rows)
+
     with get_connection() as conn:
         conn.execute(
             """
@@ -31,6 +35,7 @@ def init_db() -> None:
                 short_desc TEXT DEFAULT '',
                 long_desc TEXT DEFAULT '',
                 links_json TEXT DEFAULT '{}',
+                hidden INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
@@ -46,11 +51,18 @@ def init_db() -> None:
                 color TEXT DEFAULT '#18a999',
                 short_desc TEXT DEFAULT '',
                 long_desc TEXT DEFAULT '',
+                hidden INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
+
+        # Migration for old databases created before hidden-space support.
+        if not has_column(conn, 'music_memory', 'hidden'):
+            conn.execute("ALTER TABLE music_memory ADD COLUMN hidden INTEGER DEFAULT 0")
+        if not has_column(conn, 'cognition_memory', 'hidden'):
+            conn.execute("ALTER TABLE cognition_memory ADD COLUMN hidden INTEGER DEFAULT 0")
         conn.commit()
 
 

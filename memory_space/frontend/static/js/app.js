@@ -55,6 +55,7 @@ const state = {
     versionMatched: null,
     serviceHealthy: null,
   },
+  hiddenSpace: false,
 };
 let currentMarkdownEditor = null;
 let statusPollTimer = null;
@@ -305,7 +306,10 @@ function renderCardTagSummary(tags) {
 
 function renderCards() {
   if (!state.filteredItems.length) {
-    renderEmptyState(searchInput.value.trim() ? t('common.noMatch', 'No matching items') : t('common.empty', 'Empty'));
+    const emptyMessage = searchInput.value.trim()
+      ? t('common.noMatch', 'No matching items')
+      : (state.hiddenSpace ? t('hidden.empty', 'Hidden space is empty.') : t('common.empty', 'Empty'));
+    renderEmptyState(emptyMessage);
     return;
   }
 
@@ -498,11 +502,15 @@ function openDetail(item) {
     <div class="detail-actions">
       <button class="danger-btn" type="button" id="detailDeleteBtn">${escapeHtml(t('detail.del', 'Delete'))}</button>
       <button class="secondary-btn" type="button" id="detailEditBtn">${escapeHtml(t('detail.edit', 'Edit'))}</button>
+      <button class="secondary-btn" type="button" id="detailHiddenBtn">${escapeHtml(item.hidden ? t('detail.unhide', 'Restore') : t('detail.hide', 'Hide'))}</button>
     </div>
   `;
 
   document.getElementById('detailDeleteBtn').addEventListener('click', () => openDeleteModal(item.id));
   document.getElementById('detailEditBtn').addEventListener('click', () => openFormModal('edit', item));
+  document.getElementById('detailHiddenBtn').addEventListener('click', async () => {
+    await updateHiddenStatus(item.id, !item.hidden);
+  });
   bindExternalLinkHandlers();
 
   document.body.classList.add('panel-open');
@@ -1034,6 +1042,36 @@ function ensureToolbarRow(id) {
   return row;
 }
 
+async function updateHiddenStatus(itemId, hidden) {
+  const response = await fetch(`${apiBase}/${itemId}/hidden`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hidden }),
+  });
+  if (!response.ok) {
+    alert(t('hidden.updateFailed', 'Failed to update hidden status.'));
+    return;
+  }
+  closeDetail();
+  await loadItems();
+}
+
+function getItemsEndpoint() {
+  if (state.hiddenSpace) {
+    return `${apiBase}?hidden_only=1`;
+  }
+  return apiBase;
+}
+
+async function toggleHiddenSpace() {
+  state.hiddenSpace = !state.hiddenSpace;
+  closeDetail();
+  applyStaticTexts();
+  renderToolbarControls();
+  renderSearchFilterControl();
+  await loadItems();
+}
+
 function arrangeToolbarLayout() {
   if (!toolbar) return;
   const statusRow = ensureToolbarRow('toolbarStatusRow');
@@ -1044,6 +1082,7 @@ function arrangeToolbarLayout() {
   const compact = window.matchMedia('(max-width: 720px)').matches;
   const searchBox = toolbar.querySelector('.search-box');
   const filterWrap = document.getElementById('searchFilterWrap');
+  const hiddenSpaceBtn = document.getElementById('hiddenSpaceBtn');
   const switchBtn = document.getElementById('switchPageBtn');
   const addButton = document.getElementById('addBtn');
   const statusWrap = document.getElementById('statusWrap');
@@ -1055,7 +1094,7 @@ function arrangeToolbarLayout() {
   });
 
   if (compact) {
-    [searchBox, filterWrap, addButton].forEach((node) => {
+    [searchBox, filterWrap, hiddenSpaceBtn, addButton].forEach((node) => {
       if (node) actionRow.appendChild(node);
     });
     if (switchBtn) {
@@ -1065,7 +1104,7 @@ function arrangeToolbarLayout() {
       extraRow.hidden = true;
     }
   } else {
-    [searchBox, filterWrap, switchBtn, addButton].forEach((node) => {
+    [searchBox, filterWrap, hiddenSpaceBtn, switchBtn, addButton].forEach((node) => {
       if (node) actionRow.appendChild(node);
     });
     extraRow.hidden = true;
@@ -1086,6 +1125,7 @@ function renderToolbarControls() {
   document.getElementById('statusWrap')?.remove();
   document.getElementById('themeWrap')?.remove();
   document.getElementById('switchPageBtn')?.remove();
+  document.getElementById('hiddenSpaceBtn')?.remove();
   document.getElementById('langWrap')?.remove();
 
   const switchBtn = document.createElement('button');
@@ -1099,6 +1139,18 @@ function renderToolbarControls() {
     window.location.href = pageType === 'music' ? '/mind' : '/music';
   });
   toolbar.appendChild(switchBtn);
+
+  const hiddenSpaceBtn = document.createElement('button');
+  hiddenSpaceBtn.type = 'button';
+  hiddenSpaceBtn.className = 'secondary-btn nav-btn';
+  hiddenSpaceBtn.id = 'hiddenSpaceBtn';
+  hiddenSpaceBtn.textContent = state.hiddenSpace
+    ? t('hidden.exit', 'Exit Hidden Space')
+    : t('hidden.enter', 'Hidden Space');
+  hiddenSpaceBtn.addEventListener('click', () => {
+    void toggleHiddenSpace();
+  });
+  toolbar.appendChild(hiddenSpaceBtn);
 
   const statusWrap = document.createElement('div');
   statusWrap.className = 'status-wrap';
@@ -1193,7 +1245,9 @@ function applyStaticTexts() {
   if (deleteCancelBtn) deleteCancelBtn.textContent = t('common.cancel', 'Cancel');
   if (confirmDeleteBtn) confirmDeleteBtn.textContent = t('common.delete', 'Delete');
   if (detailPlaceholderEl && !state.selectedId) {
-    detailPlaceholderEl.textContent = t('common.selectCard', 'Select a card to view details.');
+    detailPlaceholderEl.textContent = state.hiddenSpace
+      ? t('hidden.selectCard', 'Select a hidden card to view details.')
+      : t('common.selectCard', 'Select a card to view details.');
   }
 }
 
@@ -1245,12 +1299,13 @@ async function loadUiConfig() {
 }
 
 async function loadItems() {
-  const response = await fetch(apiBase);
+  const response = await fetch(getItemsEndpoint());
   const data = await response.json();
   state.items = data.map(item => ({
     ...item,
     tags: Array.isArray(item.tags) ? item.tags : [],
     links: normaliseLinks(item.links),
+    hidden: !!item.hidden,
   }));
   applySearch();
 }
