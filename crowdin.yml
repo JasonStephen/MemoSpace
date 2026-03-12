@@ -1,3 +1,0 @@
-files:
-  - source: /memory_space/frontend/static/locales/en.json
-    translation: /memory_space/frontend/static/locales/%locale%.json
