@@ -492,9 +492,38 @@ body.panel-open .detail-panel { transform: translateX(0); }
 }
 
 .card-time {
-  margin-top: auto;
   color: var(--subtext);
   font-size: 13px;
+}
+
+.card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card-link-list {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.card-link-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.card-link-btn img {
+  width: 18px;
+  height: 18px;
+}
+
+.card-link-btn span {
+  font-size: 12px;
 }
 
 .card-tag-list {

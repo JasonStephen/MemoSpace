@@ -304,6 +304,25 @@ function renderCardTagSummary(tags) {
   `;
 }
 
+function renderCardLinkIcons(links) {
+  if (pageType !== 'music') return '';
+  const entries = normaliseLinks(links);
+  if (!entries.length) return '';
+  return `
+    <div class="card-link-list">
+      ${entries.map(link => {
+    const option = getLinkOption(link.provider);
+    const label = option?.label || link.provider;
+    const icon = option?.icon || '';
+    const iconHtml = icon
+      ? `<img src="${escapeHtml(icon)}" alt="${escapeHtml(label)}" loading="lazy" />`
+      : `<span>${escapeHtml(label.slice(0, 1).toUpperCase())}</span>`;
+    return `<a class="link-icon-btn card-link-btn" href="${escapeHtml(link.url)}" title="${escapeHtml(label)}" target="_blank" rel="noreferrer" data-provider="${escapeHtml(link.provider)}" data-url="${escapeHtml(link.url)}">${iconHtml}</a>`;
+  }).join('')}
+    </div>
+  `;
+}
+
 function renderCards() {
   if (!state.filteredItems.length) {
     const emptyMessage = searchInput.value.trim()
@@ -350,7 +369,10 @@ function renderCards() {
     return `
       <article class="card ${isActive ? 'active' : ''}" data-id="${item.id}" style="--card-accent:${escapeHtml(item.color || getDefaultColor())}">
         ${musicBody}
-        <div class="card-time">${escapeHtml(textOrEmpty(item.memory_time))}</div>
+        <div class="card-footer">
+          <div class="card-time">${escapeHtml(textOrEmpty(item.memory_time))}</div>
+          ${renderCardLinkIcons(item.links)}
+        </div>
       </article>
     `;
   }).join('');
@@ -367,6 +389,17 @@ function renderCards() {
       state.selectedId = id;
       renderCards();
       openDetail(item);
+    });
+  });
+
+  memoryGrid.querySelectorAll('.card-link-btn[data-provider][data-url]').forEach((anchor) => {
+    const provider = anchor.getAttribute('data-provider');
+    const rawUrl = anchor.getAttribute('data-url') || '';
+    anchor.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (provider !== 'netease_music') return;
+      event.preventDefault();
+      tryOpenNeteaseApp(rawUrl);
     });
   });
 }

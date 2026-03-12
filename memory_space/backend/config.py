@@ -6,6 +6,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / 'config.cfg'
 DEFAULT_APP_VERSION = 'dev'
+DEFAULT_BACKUP_INTERVAL_MINUTES = 30
+DEFAULT_BACKUP_MAX_COUNT = 24
 
 
 def _load_runtime_config() -> configparser.ConfigParser:
@@ -25,6 +27,45 @@ def _load_app_version() -> str:
 
 def get_app_version() -> str:
     return _load_app_version()
+
+
+def _parse_int_option(
+    parser: configparser.ConfigParser,
+    section: str,
+    option: str,
+    fallback: int,
+    *,
+    min_value: int = 1,
+) -> int:
+    if not parser.has_option(section, option):
+        return fallback
+    try:
+        value = parser.getint(section, option)
+    except (TypeError, ValueError):
+        return fallback
+    return max(min_value, value)
+
+
+def get_backup_interval_minutes() -> int:
+    parser = _load_runtime_config()
+    return _parse_int_option(
+        parser,
+        section='backup',
+        option='interval_minutes',
+        fallback=DEFAULT_BACKUP_INTERVAL_MINUTES,
+        min_value=1,
+    )
+
+
+def get_backup_max_count() -> int:
+    parser = _load_runtime_config()
+    return _parse_int_option(
+        parser,
+        section='backup',
+        option='max_backups',
+        fallback=DEFAULT_BACKUP_MAX_COUNT,
+        min_value=1,
+    )
 
 
 APP_VERSION = _load_app_version()

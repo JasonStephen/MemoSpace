@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import json
 import re
 from pathlib import Path
@@ -11,7 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import COLOR_CONFIG, LINK_OPTIONS, get_app_version
+from backup import BackupScheduler
+from config import (
+    COLOR_CONFIG,
+    LINK_OPTIONS,
+    get_app_version,
+    get_backup_interval_minutes,
+    get_backup_max_count,
+)
 from db import execute, fetch_all, fetch_one, init_db
 from schemas import HiddenStatusIn, MindMemoryIn, MusicMemoryIn
 
@@ -51,10 +59,40 @@ PROVIDER_ALIASES.update(
     }
 )
 
+backup_scheduler: BackupScheduler | None = None
+backup_shutdown_done = False
+
+
+def shutdown_backup() -> None:
+    global backup_shutdown_done
+    if backup_shutdown_done:
+        return
+    backup_shutdown_done = True
+    if not backup_scheduler:
+        return
+    backup_scheduler.stop()
+    backup_scheduler.backup_now()
+
+
+atexit.register(shutdown_backup)
+
 
 @app.on_event('startup')
 def startup_event() -> None:
+    global backup_scheduler, backup_shutdown_done
+    backup_shutdown_done = False
     init_db()
+    backup_scheduler = BackupScheduler(
+        interval_minutes=get_backup_interval_minutes(),
+        max_backups=get_backup_max_count(),
+    )
+    backup_scheduler.backup_now()
+    backup_scheduler.start()
+
+
+@app.on_event('shutdown')
+def shutdown_event() -> None:
+    shutdown_backup()
 
 
 @app.middleware('http')

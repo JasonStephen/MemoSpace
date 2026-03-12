@@ -33,5 +33,5 @@ Thumbs.db
 .vscode/
 
 # Local runtime database (project-specific)
-memory_space/data/memory.db
+memory_space/data/
 
