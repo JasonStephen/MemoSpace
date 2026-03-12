@@ -16,9 +16,12 @@ from backup import BackupScheduler
 from config import (
     COLOR_CONFIG,
     LINK_OPTIONS,
+    get_default_locale,
     get_app_version,
     get_backup_interval_minutes,
     get_backup_max_count,
+    get_locale_labels,
+    get_supported_locales,
 )
 from db import execute, fetch_all, fetch_one, init_db
 from schemas import HiddenStatusIn, MindMemoryIn, MusicMemoryIn
@@ -145,6 +148,11 @@ def get_ui_config() -> dict[str, object]:
     return {
         'link_options': LINK_OPTIONS,
         'color_config': COLOR_CONFIG,
+        'i18n': {
+            'locales': get_supported_locales(),
+            'default_locale': get_default_locale(),
+            'labels': get_locale_labels(),
+        },
     }
 
 

@@ -1,7 +1,6 @@
 ﻿const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
-const supportedLocales = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'];
-const defaultLocale = 'zh-Hans';
+const fallbackDefaultLocale = 'zh-Hans';
 const localeStorageKey = 'memory_space_locale';
 const appVersion = window.__APP_VERSION__ || 'dev';
 const themeStorageKey = 'memory_space_theme_mode';
@@ -47,7 +46,10 @@ const state = {
   linkOptions: [],
   colorConfig: { ...fallbackColorConfig },
   searchFields: new Set(defaultSearchFields),
-  locale: defaultLocale,
+  locale: fallbackDefaultLocale,
+  supportedLocales: [fallbackDefaultLocale],
+  defaultLocale: fallbackDefaultLocale,
+  localeLabels: {},
   messages: {},
   themeMode: 'system',
   systemStatus: {
@@ -89,6 +91,10 @@ const escapeHtml = (value) => String(value ?? '')
 
 function t(key, fallback = '') {
   return state.messages[key] || fallback || key;
+}
+
+function localeLabel(locale) {
+  return state.localeLabels[locale] || t(`lang.${locale}`, locale);
 }
 
 function normalizeThemeMode(raw) {
@@ -1239,8 +1245,8 @@ function renderToolbarControls() {
   langWrap.innerHTML = `
     <button class="secondary-btn lang-btn" type="button" id="langBtn">EN/文</button>
     <div class="lang-menu" id="langMenu" hidden>
-      ${supportedLocales.map(locale => `
-        <button type="button" class="lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(t(`lang.${locale}`, locale))}</button>
+      ${state.supportedLocales.map(locale => `
+        <button type="button" class="lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(localeLabel(locale))}</button>
       `).join('')}
     </div>
   `;
@@ -1295,7 +1301,7 @@ function applyStaticTexts() {
 }
 
 async function loadLocaleMessages(locale) {
-  const selected = supportedLocales.includes(locale) ? locale : defaultLocale;
+  const selected = state.supportedLocales.includes(locale) ? locale : state.defaultLocale;
   const response = await fetch(`/static/locales/${selected}.json?v=${encodeURIComponent(appVersion)}`);
   if (!response.ok) {
     throw new Error(`Locale file not found: ${selected}`);
@@ -1306,10 +1312,10 @@ async function loadLocaleMessages(locale) {
 async function setLocale(locale) {
   try {
     state.messages = await loadLocaleMessages(locale);
-    state.locale = locale;
+    state.locale = state.supportedLocales.includes(locale) ? locale : state.defaultLocale;
   } catch {
-    state.messages = await loadLocaleMessages(defaultLocale);
-    state.locale = defaultLocale;
+    state.messages = await loadLocaleMessages(state.defaultLocale);
+    state.locale = state.defaultLocale;
   }
 
   localStorage.setItem(localeStorageKey, state.locale);
@@ -1339,6 +1345,28 @@ async function loadUiConfig() {
       ? loadedColorConfig.presets
       : fallbackColorConfig.presets,
   };
+
+  const configuredLocales = Array.isArray(data?.i18n?.locales)
+    ? data.i18n.locales
+      .map((locale) => (locale || '').toString().trim())
+      .filter(Boolean)
+    : [];
+  state.supportedLocales = configuredLocales.length ? [...new Set(configuredLocales)] : [fallbackDefaultLocale];
+
+  const configuredDefault = (data?.i18n?.default_locale || '').toString().trim();
+  state.defaultLocale = state.supportedLocales.includes(configuredDefault)
+    ? configuredDefault
+    : state.supportedLocales[0];
+
+  const configuredLabels = data?.i18n?.labels && typeof data.i18n.labels === 'object'
+    ? data.i18n.labels
+    : {};
+  const labels = {};
+  state.supportedLocales.forEach((locale) => {
+    const label = (configuredLabels[locale] || '').toString().trim();
+    if (label) labels[locale] = label;
+  });
+  state.localeLabels = labels;
 }
 
 async function loadItems() {
@@ -1381,7 +1409,7 @@ window.addEventListener('keydown', (event) => {
 async function init() {
   initThemeMode();
   await loadUiConfig();
-  const preferredLocale = localStorage.getItem(localeStorageKey) || defaultLocale;
+  const preferredLocale = localStorage.getItem(localeStorageKey) || state.defaultLocale;
   await setLocale(preferredLocale);
   await loadItems();
   startSystemStatusPolling();

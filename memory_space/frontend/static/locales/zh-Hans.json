@@ -67,10 +67,5 @@
   "hidden.selectCard": "选择一张隐藏卡片查看详情。",
   "hidden.empty": "隐藏空间为空。",
   "hidden.updateFailed": "更新隐藏状态失败。",
-  "link.launchFallback": "如果未自动打开，请点击。",
-  "lang.zh-Hans": "简体中文",
-  "lang.zh-Hant": "繁體中文",
-  "lang.en": "English",
-  "lang.ja": "日本語",
-  "lang.ko": "한국어"
+  "link.launchFallback": "如果未自动打开，请点击。"
 }

@@ -67,10 +67,5 @@
   "hidden.selectCard": "非表示カードを選択してください。",
   "hidden.empty": "非表示スペースは空です。",
   "hidden.updateFailed": "非表示状態の更新に失敗しました。",
-  "link.launchFallback": "起動しない場合はクリックしてください。",
-  "lang.zh-Hans": "简体中文",
-  "lang.zh-Hant": "繁體中文",
-  "lang.en": "English",
-  "lang.ja": "日本語",
-  "lang.ko": "한국어"
+  "link.launchFallback": "起動しない場合はクリックしてください。"
 }
