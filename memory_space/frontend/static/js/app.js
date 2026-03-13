@@ -80,6 +80,7 @@ const state = {
   supportedLocales: [fallbackDefaultLocale],
   defaultLocale: fallbackDefaultLocale,
   localeLabels: {},
+  localeFlags: {},
   messages: {},
   themeMode: 'system',
   themeConfig: { ...fallbackThemeConfig },
@@ -127,6 +128,10 @@ function t(key, fallback = '') {
 
 function localeLabel(locale) {
   return state.localeLabels[locale] || t(`lang.${locale}`, locale);
+}
+
+function localeFlag(locale) {
+  return state.localeFlags[locale] || '🏳️';
 }
 
 function normalizeThemeMode(raw) {
@@ -1342,7 +1347,8 @@ function refreshSettingsThemeSection(overlay) {
   updateThemeControlUI();
 }
 
-function renderSettingsModal() {
+function renderSettingsModal(options = {}) {
+  const { open = false, scrollTop = 0 } = options;
   const existing = document.getElementById('settingsModalOverlay');
   if (existing) existing.remove();
   const resolvedMode = resolveThemeMode(state.themeMode);
@@ -1385,17 +1391,20 @@ function renderSettingsModal() {
           </section>
           <section class="settings-section" id="settingsLanguageSection">
             <h3>${escapeHtml(t('settings.section.language', 'Language'))}</h3>
-            <div class="settings-lang-list">
-              ${state.supportedLocales.map(locale => `
-                <button type="button" class="lang-option settings-lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(localeLabel(locale))}</button>
+            <select class="settings-language-select" id="settingsLanguageSelect">
+              ${state.supportedLocales.map((locale) => `
+                <option value="${escapeHtml(locale)}" ${locale === state.locale ? 'selected' : ''}>${escapeHtml(`${localeFlag(locale)} ${localeLabel(locale)}`)}</option>
               `).join('')}
-            </div>
+            </select>
           </section>
         </div>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
+  if (open) {
+    overlay.classList.add('open');
+  }
 
   overlay.querySelector('#closeSettingsBtn')?.addEventListener('click', closeSettingsModal);
   overlay.querySelectorAll('.theme-option[data-theme-mode]').forEach((button) => {
@@ -1406,12 +1415,9 @@ function renderSettingsModal() {
     });
   });
 
-  overlay.querySelectorAll('.settings-lang-option[data-locale]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const locale = button.getAttribute('data-locale');
-      await setLocale(locale);
-      openSettingsModal();
-    });
+  overlay.querySelector('#settingsLanguageSelect')?.addEventListener('change', async (event) => {
+    const locale = event.target?.value;
+    await setLocale(locale);
   });
 
   overlay.querySelectorAll('.settings-nav-btn[data-settings-target]').forEach((button) => {
@@ -1425,6 +1431,14 @@ function renderSettingsModal() {
   });
 
   refreshSettingsThemeSection(overlay);
+  if (open) {
+    const content = overlay.querySelector('#settingsContent');
+    if (content) {
+      window.requestAnimationFrame(() => {
+        content.scrollTop = scrollTop;
+      });
+    }
+  }
 }
 
 function bindToolbarLayout() {
@@ -1442,6 +1456,10 @@ function renderToolbarControls() {
   if (addBtn.parentElement !== toolbar) {
     toolbar.appendChild(addBtn);
   }
+
+  const existingSettings = document.getElementById('settingsModalOverlay');
+  const settingsWasOpen = !!existingSettings?.classList.contains('open');
+  const settingsScrollTop = existingSettings?.querySelector('#settingsContent')?.scrollTop || 0;
 
   document.getElementById('toolbarStatusRow')?.remove();
   document.getElementById('toolbarActionRow')?.remove();
@@ -1502,7 +1520,7 @@ function renderToolbarControls() {
     openSettingsModal();
   });
 
-  renderSettingsModal();
+  renderSettingsModal({ open: settingsWasOpen, scrollTop: settingsScrollTop });
 
   updateThemeControlUI();
   updateSystemStatusUI();
@@ -1635,6 +1653,15 @@ async function loadUiConfig() {
     if (label) labels[locale] = label;
   });
   state.localeLabels = labels;
+  const configuredFlags = data?.i18n?.flags && typeof data.i18n.flags === 'object'
+    ? data.i18n.flags
+    : {};
+  const flags = {};
+  state.supportedLocales.forEach((locale) => {
+    const flag = (configuredFlags[locale] || '').toString().trim();
+    if (flag) flags[locale] = flag;
+  });
+  state.localeFlags = flags;
 }
 
 async function loadItems() {

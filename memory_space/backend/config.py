@@ -11,6 +11,13 @@ THEME_PRESETS_FILE = BASE_DIR / 'theme_presets.json'
 DEFAULT_APP_VERSION = 'dev'
 DEFAULT_LOCALE = 'zh-Hans'
 FALLBACK_LOCALES = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko']
+DEFAULT_LOCALE_FLAGS: dict[str, str] = {
+    'zh-Hans': '🇨🇳',
+    'zh-Hant': '🇨🇳',
+    'en': '🇺🇸',
+    'ja': '🇯🇵',
+    'ko': '🇰🇷',
+}
 DEFAULT_BACKUP_INTERVAL_MINUTES = 30
 DEFAULT_BACKUP_MAX_COUNT = 24
 FALLBACK_THEME_CONFIG: dict[str, dict[str, list[dict[str, str]]]] = {
@@ -45,7 +52,7 @@ FALLBACK_THEME_CONFIG: dict[str, dict[str, list[dict[str, str]]]] = {
 
 def _load_runtime_config() -> configparser.ConfigParser:
     parser = configparser.ConfigParser()
-    parser.read(CONFIG_FILE, encoding='utf-8')
+    parser.read(CONFIG_FILE, encoding='utf-8-sig')
     return parser
 
 
@@ -119,12 +126,16 @@ def _parse_csv_option(parser: configparser.ConfigParser, section: str, option: s
 
 
 def _parse_locale_labels(parser: configparser.ConfigParser) -> dict[str, str]:
-    if not parser.has_option('i18n', 'locale_labels'):
+    return _parse_locale_mapping(parser, 'locale_labels')
+
+
+def _parse_locale_mapping(parser: configparser.ConfigParser, option: str) -> dict[str, str]:
+    if not parser.has_option('i18n', option):
         return {}
-    raw = parser.get('i18n', 'locale_labels', fallback='')
+    raw = parser.get('i18n', option, fallback='')
     if not raw:
         return {}
-    labels: dict[str, str] = {}
+    mapping: dict[str, str] = {}
     for token in raw.split(','):
         pair = token.strip()
         if not pair or ':' not in pair:
@@ -133,8 +144,8 @@ def _parse_locale_labels(parser: configparser.ConfigParser) -> dict[str, str]:
         locale_key = locale.strip()
         label_text = label.strip()
         if locale_key and label_text:
-            labels[locale_key] = label_text
-    return labels
+            mapping[locale_key] = label_text
+    return mapping
 
 
 def _resolve_i18n_settings() -> tuple[list[str], str]:
@@ -196,6 +207,16 @@ def get_locale_labels() -> dict[str, str]:
     labels = _parse_locale_labels(parser)
     supported = set(get_supported_locales())
     return {locale: label for locale, label in labels.items() if locale in supported}
+
+
+def get_locale_flags() -> dict[str, str]:
+    parser = _load_runtime_config()
+    configured = _parse_locale_mapping(parser, 'locale_flags')
+    supported = get_supported_locales()
+    result: dict[str, str] = {}
+    for locale in supported:
+        result[locale] = configured.get(locale, DEFAULT_LOCALE_FLAGS.get(locale, '🏳️'))
+    return result
 
 
 def _parse_int_option(

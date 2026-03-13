@@ -20,6 +20,7 @@ from config import (
     get_app_version,
     get_backup_interval_minutes,
     get_backup_max_count,
+    get_locale_flags,
     get_locale_labels,
     get_supported_locales,
     get_theme_config,
@@ -154,6 +155,7 @@ def get_ui_config() -> dict[str, object]:
             'locales': get_supported_locales(),
             'default_locale': get_default_locale(),
             'labels': get_locale_labels(),
+            'flags': get_locale_flags(),
         },
     }
 

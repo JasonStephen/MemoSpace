@@ -1107,6 +1107,15 @@ body.panel-open .detail-panel { transform: translateX(0); }
   text-align: left;
 }
 
+.settings-language-select {
+  width: min(320px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  color: var(--text);
+}
+
 .confirm-text {
   color: #4b5567;
   padding: 8px 22px 0;
@@ -1176,6 +1185,12 @@ html[data-theme="dark"] .memory-form select {
   caret-color: var(--text);
   background: #1b2436;
   border-color: rgba(148, 163, 184, 0.28);
+}
+
+html[data-theme="dark"] .settings-language-select {
+  background: #1b2436;
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--text);
 }
 
 html[data-theme="dark"] .search-box input {
