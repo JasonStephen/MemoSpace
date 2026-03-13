@@ -629,6 +629,12 @@ function getColorFieldHtml(currentColor) {
   const selectedPreset = hasPreset ? normalizedCurrent : firstPreset;
   const customHidden = mode === 'custom' ? '' : 'hidden';
   const customColor = normalizedCurrent || getDefaultColor();
+  const getPresetLabel = (item) => {
+    const rawName = (item?.name || '').toString().trim();
+    const keySuffix = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if (!keySuffix) return rawName;
+    return t(`color.preset.${keySuffix}`, rawName);
+  };
 
   return `
     <div class="field">
@@ -637,7 +643,8 @@ function getColorFieldHtml(currentColor) {
         ${presets.map(item => {
           const value = normaliseHexColor(item.value);
           const active = mode === 'preset' && value === selectedPreset ? 'active' : '';
-          return `<button type="button" class="color-swatch-btn ${active}" data-preset-color="${escapeHtml(value)}" title="${escapeHtml(item.name)}" style="--swatch-color:${escapeHtml(value)}"></button>`;
+          const label = getPresetLabel(item);
+          return `<button type="button" class="color-swatch-btn ${active}" data-preset-color="${escapeHtml(value)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" style="--swatch-color:${escapeHtml(value)}"></button>`;
         }).join('')}
         ${state.colorConfig.allow_custom ? `<button type="button" class="color-custom-btn ${mode === 'custom' ? 'active' : ''}" id="customColorTrigger">${escapeHtml(t('common.custom', 'Custom'))}</button>` : ''}
       </div>

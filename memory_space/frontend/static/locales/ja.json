@@ -67,5 +67,20 @@
   "hidden.selectCard": "非表示カードを選択してください。",
   "hidden.empty": "非表示スペースは空です。",
   "hidden.updateFailed": "非表示状態の更新に失敗しました。",
-  "link.launchFallback": "起動しない場合はクリックしてください。"
-}
+  "link.launchFallback": "起動しない場合はクリックしてください。",
+  "color.preset.calm": "穏やか",
+  "color.preset.peace": "平和",
+  "color.preset.tender": "優しさ",
+  "color.preset.joy": "喜び",
+  "color.preset.hope": "希望",
+  "color.preset.healing": "癒し",
+  "color.preset.romance": "ロマンス",
+  "color.preset.warmth": "ぬくもり",
+  "color.preset.reflection": "内省",
+  "color.preset.freedom": "自由",
+  "color.preset.passion": "情熱",
+  "color.preset.clarity": "明瞭さ",
+  "color.preset.mystery": "神秘",
+  "color.preset.growth": "成長",
+  "color.preset.nostalgia": "郷愁"
+  }

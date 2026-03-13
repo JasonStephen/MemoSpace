@@ -67,5 +67,20 @@
   "hidden.selectCard": "選擇一張隱藏卡片查看詳情。",
   "hidden.empty": "隱藏空間為空。",
   "hidden.updateFailed": "更新隱藏狀態失敗。",
-  "link.launchFallback": "若未自動開啟，請點擊。"
+  "link.launchFallback": "若未自動開啟，請點擊。",
+  "color.preset.calm": "寧靜",
+  "color.preset.peace": "平和",
+  "color.preset.tender": "溫柔",
+  "color.preset.joy": "喜悅",
+  "color.preset.hope": "希望",
+  "color.preset.healing": "療癒",
+  "color.preset.romance": "浪漫",
+  "color.preset.warmth": "溫暖",
+  "color.preset.reflection": "沉思",
+  "color.preset.freedom": "自由",
+  "color.preset.passion": "熱情",
+  "color.preset.clarity": "清晰",
+  "color.preset.mystery": "神秘",
+  "color.preset.growth": "成長",
+  "color.preset.nostalgia": "懷舊"
 }

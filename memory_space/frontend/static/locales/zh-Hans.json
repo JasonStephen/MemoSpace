@@ -67,5 +67,20 @@
   "hidden.selectCard": "选择一张隐藏卡片查看详情。",
   "hidden.empty": "隐藏空间为空。",
   "hidden.updateFailed": "更新隐藏状态失败。",
-  "link.launchFallback": "如果未自动打开，请点击。"
+  "link.launchFallback": "如果未自动打开，请点击。",
+  "color.preset.calm": "宁静",
+  "color.preset.peace": "平和",
+  "color.preset.tender": "温柔",
+  "color.preset.joy": "喜悦",
+  "color.preset.hope": "希望",
+  "color.preset.healing": "治愈",
+  "color.preset.romance": "浪漫",
+  "color.preset.warmth": "温暖",
+  "color.preset.reflection": "沉思",
+  "color.preset.freedom": "自由",
+  "color.preset.passion": "热情",
+  "color.preset.clarity": "清晰",
+  "color.preset.mystery": "神秘",
+  "color.preset.growth": "成长",
+  "color.preset.nostalgia": "怀旧"
 }
