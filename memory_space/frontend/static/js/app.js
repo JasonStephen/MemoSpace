@@ -110,9 +110,8 @@ function resolveThemeMode(mode) {
 }
 
 function updateThemeControlUI() {
-  const wrap = document.getElementById('themeWrap');
-  if (!wrap) return;
-  const buttons = wrap.querySelectorAll('.theme-option');
+  const buttons = document.querySelectorAll('.theme-option[data-theme-mode]');
+  if (!buttons.length) return;
   buttons.forEach((button) => {
     const mode = button.getAttribute('data-theme-mode');
     const active = mode === state.themeMode;
@@ -1172,10 +1171,9 @@ function arrangeToolbarLayout() {
   const switchBtn = document.getElementById('switchPageBtn');
   const addButton = addBtn;
   const statusWrap = document.getElementById('statusWrap');
-  const themeWrap = document.getElementById('themeWrap');
-  const langWrap = document.getElementById('langWrap');
+  const settingsWrap = document.getElementById('settingsWrap');
 
-  [statusWrap, themeWrap, langWrap].forEach((node) => {
+  [statusWrap, settingsWrap].forEach((node) => {
     if (node) statusRow.appendChild(node);
   });
 
@@ -1195,6 +1193,91 @@ function arrangeToolbarLayout() {
     });
     extraRow.hidden = true;
   }
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModalOverlay')?.classList.remove('open');
+}
+
+function openSettingsModal() {
+  const overlay = document.getElementById('settingsModalOverlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  updateThemeControlUI();
+}
+
+function renderSettingsModal() {
+  const existing = document.getElementById('settingsModalOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'settingsModalOverlay';
+  overlay.innerHTML = `
+    <div class="modal-card settings-modal">
+      <div class="modal-header">
+        <h2>${escapeHtml(t('settings.title', 'Settings'))}</h2>
+        <button class="icon-btn" type="button" id="closeSettingsBtn" aria-label="${escapeHtml(t('common.close', 'Close'))}">&times;</button>
+      </div>
+      <div class="settings-layout">
+        <aside class="settings-nav">
+          <button type="button" class="settings-nav-btn" data-settings-target="settingsThemeSection">${escapeHtml(t('settings.nav.theme', 'Theme'))}</button>
+          <button type="button" class="settings-nav-btn" data-settings-target="settingsLanguageSection">${escapeHtml(t('settings.nav.language', 'Language'))}</button>
+        </aside>
+        <div class="settings-content" id="settingsContent">
+          <section class="settings-section" id="settingsThemeSection">
+            <h3>${escapeHtml(t('settings.section.theme', 'Theme Mode'))}</h3>
+            <div class="theme-wrap settings-theme-wrap">
+              <button class="icon-btn theme-option" type="button" data-theme-mode="light" title="${escapeHtml(t('theme.light', 'Light Mode'))}" aria-label="${escapeHtml(t('theme.light', 'Light Mode'))}">
+                ☀
+              </button>
+              <button class="icon-btn theme-option" type="button" data-theme-mode="dark" title="${escapeHtml(t('theme.dark', 'Dark Mode'))}" aria-label="${escapeHtml(t('theme.dark', 'Dark Mode'))}">
+                ☾
+              </button>
+              <button class="icon-btn theme-option" type="button" data-theme-mode="system" title="${escapeHtml(t('theme.system', 'System'))}" aria-label="${escapeHtml(t('theme.system', 'System'))}">
+                ◐
+              </button>
+            </div>
+          </section>
+          <section class="settings-section" id="settingsLanguageSection">
+            <h3>${escapeHtml(t('settings.section.language', 'Language'))}</h3>
+            <div class="settings-lang-list">
+              ${state.supportedLocales.map(locale => `
+                <button type="button" class="lang-option settings-lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(localeLabel(locale))}</button>
+              `).join('')}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#closeSettingsBtn')?.addEventListener('click', closeSettingsModal);
+  overlay.querySelectorAll('.theme-option[data-theme-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const mode = button.getAttribute('data-theme-mode') || 'system';
+      applyTheme(mode);
+    });
+  });
+
+  overlay.querySelectorAll('.settings-lang-option[data-locale]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const locale = button.getAttribute('data-locale');
+      await setLocale(locale);
+      openSettingsModal();
+    });
+  });
+
+  overlay.querySelectorAll('.settings-nav-btn[data-settings-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('data-settings-target');
+      const target = overlay.querySelector(`#${targetId}`);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
 }
 
 function bindToolbarLayout() {
@@ -1217,10 +1300,9 @@ function renderToolbarControls() {
   document.getElementById('toolbarActionRow')?.remove();
   document.getElementById('toolbarExtraRow')?.remove();
   document.getElementById('statusWrap')?.remove();
-  document.getElementById('themeWrap')?.remove();
+  document.getElementById('settingsWrap')?.remove();
   document.getElementById('switchPageBtn')?.remove();
   document.getElementById('hiddenSpaceBtn')?.remove();
-  document.getElementById('langWrap')?.remove();
 
   const switchBtn = document.createElement('button');
   switchBtn.type = 'button';
@@ -1261,61 +1343,19 @@ function renderToolbarControls() {
   `;
   toolbar.appendChild(statusWrap);
 
-  const themeWrap = document.createElement('div');
-  themeWrap.className = 'theme-wrap';
-  themeWrap.id = 'themeWrap';
-  themeWrap.innerHTML = `
-    <button class="icon-btn theme-option" type="button" data-theme-mode="light" title="${escapeHtml(t('theme.light', '白天模式'))}" aria-label="${escapeHtml(t('theme.light', '白天模式'))}">
-      ☀
-    </button>
-    <button class="icon-btn theme-option" type="button" data-theme-mode="dark" title="${escapeHtml(t('theme.dark', '黑夜模式'))}" aria-label="${escapeHtml(t('theme.dark', '黑夜模式'))}">
-      ☾
-    </button>
-    <button class="icon-btn theme-option" type="button" data-theme-mode="system" title="${escapeHtml(t('theme.system', '跟随系统'))}" aria-label="${escapeHtml(t('theme.system', '跟随系统'))}">
-      ◐
-    </button>
+  const settingsWrap = document.createElement('div');
+  settingsWrap.className = 'settings-wrap';
+  settingsWrap.id = 'settingsWrap';
+  settingsWrap.innerHTML = `
+    <button class="secondary-btn nav-btn" type="button" id="openSettingsBtn">${escapeHtml(t('common.settings', 'Settings'))}</button>
   `;
-  toolbar.appendChild(themeWrap);
+  toolbar.appendChild(settingsWrap);
 
-  themeWrap.querySelectorAll('.theme-option').forEach((button) => {
-    button.addEventListener('click', () => {
-      const mode = button.getAttribute('data-theme-mode') || 'system';
-      applyTheme(mode);
-    });
+  settingsWrap.querySelector('#openSettingsBtn')?.addEventListener('click', () => {
+    openSettingsModal();
   });
 
-  const langWrap = document.createElement('div');
-  langWrap.className = 'lang-wrap';
-  langWrap.id = 'langWrap';
-  langWrap.innerHTML = `
-    <button class="secondary-btn lang-btn" type="button" id="langBtn">EN/文</button>
-    <div class="lang-menu" id="langMenu" hidden>
-      ${state.supportedLocales.map(locale => `
-        <button type="button" class="lang-option ${locale === state.locale ? 'active' : ''}" data-locale="${escapeHtml(locale)}">${escapeHtml(localeLabel(locale))}</button>
-      `).join('')}
-    </div>
-  `;
-  toolbar.appendChild(langWrap);
-
-  const langBtn = langWrap.querySelector('#langBtn');
-  const langMenu = langWrap.querySelector('#langMenu');
-  langBtn.addEventListener('click', () => {
-    langMenu.hidden = !langMenu.hidden;
-  });
-
-  langWrap.querySelectorAll('.lang-option').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const locale = btn.getAttribute('data-locale');
-      langMenu.hidden = true;
-      await setLocale(locale);
-    });
-  });
-
-  document.addEventListener('click', (event) => {
-    if (!langWrap.contains(event.target)) {
-      langMenu.hidden = true;
-    }
-  });
+  renderSettingsModal();
 
   updateThemeControlUI();
   updateSystemStatusUI();
@@ -1447,6 +1487,7 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     closeFormModal();
     closeDeleteModal();
+    closeSettingsModal();
     closeDetail();
   }
 });
