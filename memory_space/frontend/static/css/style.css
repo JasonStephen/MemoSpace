@@ -19,6 +19,7 @@
   --scrollbar-thumb: rgba(100, 116, 139, 0.55);
   --scrollbar-thumb-hover: rgba(71, 85, 105, 0.72);
   --scrollbar-track: rgba(148, 163, 184, 0.16);
+  --app-font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -72,7 +73,7 @@ html, body {
   min-height: 100%;
   background: var(--bg-gradient);
   color: var(--text);
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--app-font-family);
 }
 
 button, input, textarea { font: inherit; }
@@ -1116,6 +1117,43 @@ body.panel-open .detail-panel { transform: translateX(0); }
   color: var(--text);
 }
 
+.settings-font-help,
+.settings-font-current {
+  margin: 0;
+  color: var(--subtext);
+  font-size: 13px;
+}
+
+.settings-font-controls {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-font-select {
+  width: min(440px, 100%);
+  min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  color: var(--text);
+  outline: none;
+}
+
+.settings-font-select:focus {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme-accent) 22%, transparent);
+}
+
+.settings-font-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--panel) 82%, #9ca3af 18%);
+}
+
 .confirm-text {
   color: #4b5567;
   padding: 8px 22px 0;
@@ -1188,6 +1226,12 @@ html[data-theme="dark"] .memory-form select {
 }
 
 html[data-theme="dark"] .settings-language-select {
+  background: #1b2436;
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .settings-font-select {
   background: #1b2436;
   border-color: rgba(148, 163, 184, 0.28);
   color: var(--text);

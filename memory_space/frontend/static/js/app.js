@@ -1,7 +1,9 @@
 ﻿const pageType = document.body.dataset.pageType;
 const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
 const fallbackDefaultLocale = 'zh-Hans';
+const fallbackAppFontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 const localeStorageKey = 'memory_space_locale';
+const fontStorageKey = 'memory_space_custom_font_family';
 const appVersion = window.__APP_VERSION__ || 'dev';
 const themeStorageKey = 'memory_space_theme_mode';
 const themePresetStoragePrefix = 'memory_space_theme_preset_';
@@ -66,6 +68,20 @@ const searchFieldOptions = pageType === 'music'
     ];
 
 const defaultSearchFields = pageType === 'music' ? ['title', 'artist'] : ['title'];
+const fontPresetCandidates = [
+  { label: 'Microsoft YaHei', value: '"Microsoft YaHei"' },
+  { label: 'Segoe UI', value: '"Segoe UI"' },
+  { label: 'PingFang SC', value: '"PingFang SC"' },
+  { label: 'Hiragino Sans GB', value: '"Hiragino Sans GB"' },
+  { label: 'Roboto', value: '"Roboto"' },
+  { label: 'Noto Sans', value: '"Noto Sans"' },
+  { label: 'Noto Sans CJK SC', value: '"Noto Sans CJK SC"' },
+  { label: 'Helvetica Neue', value: '"Helvetica Neue"' },
+  { label: 'Arial', value: '"Arial"' },
+  { label: 'Ubuntu', value: '"Ubuntu"' },
+  { label: 'Cantarell', value: '"Cantarell"' },
+  { label: 'Source Han Sans SC', value: '"Source Han Sans SC"' },
+];
 
 const state = {
   items: [],
@@ -82,6 +98,11 @@ const state = {
   localeLabels: {},
   localeFlags: {},
   messages: {},
+  appFontFamily: fallbackAppFontFamily,
+  customFontFamily: '',
+  fontOptions: [],
+  fontSource: 'preset',
+  fontSelectionEnabled: false,
   themeMode: 'system',
   themeConfig: { ...fallbackThemeConfig },
   themePresetByMode: { light: '', dark: '' },
@@ -132,6 +153,109 @@ function localeLabel(locale) {
 
 function localeFlag(locale) {
   return state.localeFlags[locale] || '🏳️';
+}
+
+function applyAppFontFamily(fontFamily) {
+  const raw = (fontFamily || '').toString().trim();
+  const fallback = '"Microsoft YaHei", sans-serif';
+  if (!raw) {
+    document.documentElement.style.setProperty('--app-font-family', fallbackAppFontFamily);
+    return;
+  }
+  const lower = raw.toLowerCase();
+  const normalized = lower.includes('microsoft yahei')
+    ? `${raw}, sans-serif`
+    : `${raw}, ${fallback}`;
+  document.documentElement.style.setProperty('--app-font-family', normalized);
+}
+
+function stripQuotes(value) {
+  return (value || '').toString().trim().replace(/^["']|["']$/g, '');
+}
+
+function getPrimaryFontFromStack(stack) {
+  const first = (stack || '').toString().split(',')[0] || '';
+  return stripQuotes(first);
+}
+
+function isFontAvailable(fontName) {
+  const family = stripQuotes(fontName);
+  if (!family) return false;
+  if (document.fonts && typeof document.fonts.check === 'function') {
+    try {
+      if (document.fonts.check(`16px "${family}"`)) return true;
+    } catch {}
+  }
+  return false;
+}
+
+function normalizeCustomFontFamily(value) {
+  return (value || '')
+    .toString()
+    .replace(/[\r\n]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function saveCustomFontFamily(value) {
+  const normalized = normalizeCustomFontFamily(value);
+  state.customFontFamily = normalized;
+  if (normalized) {
+    localStorage.setItem(fontStorageKey, normalized);
+  } else {
+    localStorage.removeItem(fontStorageKey);
+  }
+}
+
+function applyEffectiveFontFamily() {
+  const preferred = state.customFontFamily || state.appFontFamily;
+  applyAppFontFamily(preferred);
+}
+
+async function rebuildFontOptions() {
+  const options = [];
+  const seen = new Set();
+  const pushOption = (value, label) => {
+    const key = stripQuotes(value).toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    options.push({ value, label });
+  };
+
+  const defaultPrimary = getPrimaryFontFromStack(state.appFontFamily);
+  if (defaultPrimary) {
+    pushOption(`"${defaultPrimary}"`, `${t('settings.font.defaultFromConfig', 'Default (from config)')}: ${defaultPrimary}`);
+  }
+
+  let localFontLoaded = false;
+  if (typeof window.queryLocalFonts === 'function') {
+    try {
+      const localFonts = await window.queryLocalFonts();
+      localFonts.forEach((font) => {
+        const family = stripQuotes(font?.family || '');
+        if (!family) return;
+        pushOption(`"${family}"`, family);
+      });
+      localFontLoaded = options.length > 1;
+    } catch (error) {
+      console.warn('queryLocalFonts unavailable or denied:', error);
+    }
+  }
+
+  fontPresetCandidates.forEach((item) => {
+    const primary = getPrimaryFontFromStack(item.value);
+    if (primary && (isFontAvailable(primary) || !localFontLoaded)) {
+      pushOption(item.value, item.label);
+    }
+  });
+
+  if (!options.length) {
+    pushOption('"Microsoft YaHei"', 'Microsoft YaHei');
+  }
+
+  state.fontSource = localFontLoaded ? 'local' : 'preset';
+  state.fontSelectionEnabled = localFontLoaded;
+  state.fontOptions = options;
 }
 
 function normalizeThemeMode(raw) {
@@ -1289,10 +1413,11 @@ function closeSettingsModal() {
   document.getElementById('settingsModalOverlay')?.classList.remove('open');
 }
 
-function openSettingsModal() {
+async function openSettingsModal() {
   const overlay = document.getElementById('settingsModalOverlay');
-  if (!overlay) return;
-  overlay.classList.add('open');
+  const scrollTop = overlay?.querySelector('#settingsContent')?.scrollTop || 0;
+  await rebuildFontOptions();
+  renderSettingsModal({ open: true, scrollTop });
   updateThemeControlUI();
 }
 
@@ -1367,6 +1492,7 @@ function renderSettingsModal(options = {}) {
       <div class="settings-layout">
         <aside class="settings-nav">
           <button type="button" class="settings-nav-btn" data-settings-target="settingsThemeSection">${escapeHtml(t('settings.nav.theme', 'Theme'))}</button>
+          <button type="button" class="settings-nav-btn" data-settings-target="settingsFontSection">${escapeHtml(t('settings.nav.font', 'Font'))}</button>
           <button type="button" class="settings-nav-btn" data-settings-target="settingsLanguageSection">${escapeHtml(t('settings.nav.language', 'Language'))}</button>
         </aside>
         <div class="settings-content" id="settingsContent">
@@ -1388,6 +1514,34 @@ function renderSettingsModal(options = {}) {
               ${renderThemePresetGroup(resolvedMode, 'solid', 'settings.theme.solid', 'Solid Presets')}
               ${renderThemePresetGroup(resolvedMode, 'gradient', 'settings.theme.gradient', 'Gradient Presets')}
             </div>
+          </section>
+          <section class="settings-section" id="settingsFontSection">
+            <h3>${escapeHtml(t('settings.section.font', 'Font'))}</h3>
+            <p class="settings-font-help">${escapeHtml(t('settings.font.help', 'Select a local system font. If unavailable, it falls back to Microsoft YaHei.'))}</p>
+            <p class="settings-font-help">${escapeHtml(t('settings.font.source', 'Font list source'))}: ${escapeHtml(state.fontSource === 'local' ? t('settings.font.source.local', 'Local fonts') : t('settings.font.source.preset', 'Preset compatibility list'))}</p>
+            <div class="settings-font-controls">
+              <select class="settings-font-select" id="settingsFontSelect" ${state.fontSelectionEnabled ? '' : 'disabled'}>
+                <option value="">${escapeHtml(t('settings.font.useDefault', 'Use Default'))}</option>
+                ${
+                  state.customFontFamily && !state.fontOptions.some(item => item.value === state.customFontFamily)
+                    ? `<option value="${escapeHtml(state.customFontFamily)}" selected>${escapeHtml(`${t('settings.font.customSaved', 'Saved custom')}: ${stripQuotes(state.customFontFamily)}`)}</option>`
+                    : ''
+                }
+                ${state.fontOptions.map((item) => `
+                  <option value="${escapeHtml(item.value)}" ${item.value === state.customFontFamily ? 'selected' : ''}>
+                    ${escapeHtml(item.label)}
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+            ${
+              state.fontSelectionEnabled
+                ? ''
+                : `<p class="settings-font-help">${escapeHtml(t('settings.font.disabledHint', 'Local font access is unavailable in this browser, so font selection is disabled.'))}</p>`
+            }
+            <p class="settings-font-current" id="settingsFontCurrent">
+              ${escapeHtml(t('settings.font.current', 'Current'))}: ${escapeHtml(state.customFontFamily || state.appFontFamily)}
+            </p>
           </section>
           <section class="settings-section" id="settingsLanguageSection">
             <h3>${escapeHtml(t('settings.section.language', 'Language'))}</h3>
@@ -1419,6 +1573,22 @@ function renderSettingsModal(options = {}) {
     const locale = event.target?.value;
     await setLocale(locale);
   });
+
+  const fontSelect = overlay.querySelector('#settingsFontSelect');
+  const fontCurrent = overlay.querySelector('#settingsFontCurrent');
+  const refreshFontCurrent = () => {
+    if (!fontCurrent) return;
+    fontCurrent.textContent = `${t('settings.font.current', 'Current')}: ${state.customFontFamily || state.appFontFamily}`;
+  };
+  const applyCustomFontFromSelect = () => {
+    if (!fontSelect) return;
+    saveCustomFontFamily(fontSelect.value);
+    applyEffectiveFontFamily();
+    refreshFontCurrent();
+  };
+  if (state.fontSelectionEnabled) {
+    fontSelect?.addEventListener('change', applyCustomFontFromSelect);
+  }
 
   overlay.querySelectorAll('.settings-nav-btn[data-settings-target]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1517,7 +1687,7 @@ function renderToolbarControls() {
   toolbar.appendChild(settingsWrap);
 
   settingsWrap.querySelector('#openSettingsBtn')?.addEventListener('click', () => {
-    openSettingsModal();
+    void openSettingsModal();
   });
 
   renderSettingsModal({ open: settingsWasOpen, scrollTop: settingsScrollTop });
@@ -1586,6 +1756,10 @@ async function loadUiConfig() {
     throw new Error('Failed to load UI config.');
   }
   const data = await response.json();
+  const appFontFamily = (data?.app_font_family || '').toString().trim();
+  state.appFontFamily = appFontFamily || fallbackAppFontFamily;
+  await rebuildFontOptions();
+  applyEffectiveFontFamily();
   state.linkOptions = Array.isArray(data?.link_options) ? data.link_options : [];
   const loadedColorConfig = data?.color_config || {};
   state.colorConfig = {
@@ -1705,6 +1879,9 @@ window.addEventListener('keydown', (event) => {
 async function init() {
   initThemeMode();
   await loadUiConfig();
+  saveCustomFontFamily(localStorage.getItem(fontStorageKey) || '');
+  await rebuildFontOptions();
+  applyEffectiveFontFamily();
   const preferredLocale = localStorage.getItem(localeStorageKey) || state.defaultLocale;
   await setLocale(preferredLocale);
   await loadItems();
