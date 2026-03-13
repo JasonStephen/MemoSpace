@@ -4,6 +4,7 @@ const fallbackDefaultLocale = 'zh-Hans';
 const localeStorageKey = 'memory_space_locale';
 const appVersion = window.__APP_VERSION__ || 'dev';
 const themeStorageKey = 'memory_space_theme_mode';
+const themePresetStoragePrefix = 'memory_space_theme_preset_';
 const statusPollIntervalMs = 15000;
 
 const fallbackColorConfig = {
@@ -15,6 +16,35 @@ const fallbackColorConfig = {
     { name: 'Indigo', value: '#6d5efc' },
     { name: 'Teal', value: '#18a999' },
   ],
+};
+
+const fallbackThemeConfig = {
+  light: {
+    solid: [
+      {
+        id: 'fallback-light-solid',
+        name: 'Default Light',
+        gradient: 'linear-gradient(180deg, #f8faff 0%, #f3f5fb 100%)',
+        accent: '#4f46e5',
+        accent_strong: '#4338ca',
+        accent_soft: '#a5b4fc',
+      },
+    ],
+    gradient: [],
+  },
+  dark: {
+    solid: [
+      {
+        id: 'fallback-dark-solid',
+        name: 'Default Dark',
+        gradient: 'radial-gradient(circle at top, #1a2233 0%, #0f1420 58%)',
+        accent: '#60a5fa',
+        accent_strong: '#3b82f6',
+        accent_soft: '#93c5fd',
+      },
+    ],
+    gradient: [],
+  },
 };
 
 const searchFieldOptions = pageType === 'music'
@@ -52,6 +82,8 @@ const state = {
   localeLabels: {},
   messages: {},
   themeMode: 'system',
+  themeConfig: { ...fallbackThemeConfig },
+  themePresetByMode: { light: '', dark: '' },
   systemStatus: {
     latestVersion: '',
     versionMatched: null,
@@ -109,6 +141,58 @@ function resolveThemeMode(mode) {
   return mode;
 }
 
+function getThemePresetStorageKey(mode) {
+  return `${themePresetStoragePrefix}${mode}`;
+}
+
+function getThemePresetsForMode(mode) {
+  const data = state.themeConfig?.[mode] || {};
+  const solid = Array.isArray(data.solid) ? data.solid : [];
+  const gradient = Array.isArray(data.gradient) ? data.gradient : [];
+  return { solid, gradient, all: [...solid, ...gradient] };
+}
+
+function ensureThemePreset(mode, { preferStored = true } = {}) {
+  const presets = getThemePresetsForMode(mode).all;
+  if (!presets.length) return null;
+  const stored = localStorage.getItem(getThemePresetStorageKey(mode)) || '';
+  let currentId = preferStored
+    ? (stored || state.themePresetByMode[mode])
+    : (state.themePresetByMode[mode] || stored);
+  if (!presets.some(item => item.id === currentId)) {
+    currentId = presets[0].id;
+  }
+  state.themePresetByMode[mode] = currentId;
+  return presets.find(item => item.id === currentId) || presets[0];
+}
+
+function applyThemePreset(mode, { persist = true, forcedPresetId = '' } = {}) {
+  if (forcedPresetId) {
+    state.themePresetByMode[mode] = forcedPresetId;
+    if (persist) {
+      localStorage.setItem(getThemePresetStorageKey(mode), forcedPresetId);
+    }
+  }
+  const preset = ensureThemePreset(mode, { preferStored: !forcedPresetId });
+  if (!preset) return;
+  if (persist && !forcedPresetId) {
+    localStorage.setItem(getThemePresetStorageKey(mode), preset.id);
+  }
+  console.debug('[theme] preset apply', {
+    mode,
+    presetId: preset.id,
+    themeMode: state.themeMode,
+    resolvedMode: resolveThemeMode(state.themeMode),
+  });
+  if (resolveThemeMode(state.themeMode) !== mode) return;
+  const root = document.documentElement;
+  root.style.setProperty('--bg-gradient', preset.gradient);
+  root.style.setProperty('--theme-accent', preset.accent);
+  root.style.setProperty('--theme-accent-strong', preset.accent_strong || preset.accent);
+  root.style.setProperty('--theme-accent-soft', preset.accent_soft || preset.accent);
+  root.style.setProperty('--detail-panel-bg', `color-mix(in srgb, var(--panel) 84%, ${preset.accent_soft || preset.accent} 16%)`);
+}
+
 function updateThemeControlUI() {
   const buttons = document.querySelectorAll('.theme-option[data-theme-mode]');
   if (!buttons.length) return;
@@ -127,6 +211,7 @@ function applyTheme(mode, { persist = true } = {}) {
   if (persist) {
     localStorage.setItem(themeStorageKey, state.themeMode);
   }
+  applyThemePreset(resolved, { persist: false });
   updateThemeControlUI();
 }
 
@@ -1206,9 +1291,63 @@ function openSettingsModal() {
   updateThemeControlUI();
 }
 
+function renderThemePresetGroup(mode, groupKey, titleKey, fallbackTitle) {
+  const groups = getThemePresetsForMode(mode);
+  const groupItems = groupKey === 'solid' ? groups.solid : groups.gradient;
+  if (!groupItems.length) return '';
+  const activeId = state.themePresetByMode[mode];
+  return `
+    <div class="settings-theme-group">
+      <h4>${escapeHtml(t(titleKey, fallbackTitle))}</h4>
+      <div class="theme-preset-grid">
+        ${groupItems.map((preset) => `
+          <button
+            type="button"
+            class="theme-preset-btn ${preset.id === activeId ? 'active' : ''}"
+            data-theme-preset-mode="${escapeHtml(mode)}"
+            data-theme-preset-id="${escapeHtml(preset.id)}"
+            title="${escapeHtml(preset.name || preset.id)}"
+            style="--preset-bg:${escapeHtml(preset.gradient)}"
+          ></button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function refreshSettingsThemeSection(overlay) {
+  if (!overlay) return;
+  const resolvedMode = resolveThemeMode(state.themeMode);
+  const hint = overlay.querySelector('#settingsThemeModeHint');
+  if (hint) {
+    hint.textContent = `${t('settings.theme.currentMode', 'Current mode preset list')}: ${t(`theme.${resolvedMode}`, resolvedMode)}`;
+  }
+  const host = overlay.querySelector('#settingsThemePresetHost');
+  if (host) {
+    host.innerHTML = `
+      ${renderThemePresetGroup(resolvedMode, 'solid', 'settings.theme.solid', 'Solid Presets')}
+      ${renderThemePresetGroup(resolvedMode, 'gradient', 'settings.theme.gradient', 'Gradient Presets')}
+    `;
+    host.querySelectorAll('.theme-preset-btn[data-theme-preset-id][data-theme-preset-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const mode = button.getAttribute('data-theme-preset-mode');
+        const presetId = button.getAttribute('data-theme-preset-id');
+        if (!mode || !presetId) return;
+        console.debug('[theme] preset click', { mode, presetId });
+        applyThemePreset(mode, { persist: true, forcedPresetId: presetId });
+        refreshSettingsThemeSection(overlay);
+      });
+    });
+  }
+  updateThemeControlUI();
+}
+
 function renderSettingsModal() {
   const existing = document.getElementById('settingsModalOverlay');
   if (existing) existing.remove();
+  const resolvedMode = resolveThemeMode(state.themeMode);
+  ensureThemePreset('light');
+  ensureThemePreset('dark');
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -1238,6 +1377,11 @@ function renderSettingsModal() {
                 ◐
               </button>
             </div>
+            <p class="settings-theme-mode-hint" id="settingsThemeModeHint">${escapeHtml(t('settings.theme.currentMode', 'Current mode preset list'))}: ${escapeHtml(t(`theme.${resolvedMode}`, resolvedMode))}</p>
+            <div id="settingsThemePresetHost">
+              ${renderThemePresetGroup(resolvedMode, 'solid', 'settings.theme.solid', 'Solid Presets')}
+              ${renderThemePresetGroup(resolvedMode, 'gradient', 'settings.theme.gradient', 'Gradient Presets')}
+            </div>
           </section>
           <section class="settings-section" id="settingsLanguageSection">
             <h3>${escapeHtml(t('settings.section.language', 'Language'))}</h3>
@@ -1258,6 +1402,7 @@ function renderSettingsModal() {
     button.addEventListener('click', () => {
       const mode = button.getAttribute('data-theme-mode') || 'system';
       applyTheme(mode);
+      refreshSettingsThemeSection(overlay);
     });
   });
 
@@ -1278,6 +1423,8 @@ function renderSettingsModal() {
       }
     });
   });
+
+  refreshSettingsThemeSection(overlay);
 }
 
 function bindToolbarLayout() {
@@ -1430,6 +1577,42 @@ async function loadUiConfig() {
       ? loadedColorConfig.presets
       : fallbackColorConfig.presets,
   };
+
+  const normalizeThemePresetList = (items) => (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      id: (item?.id || '').toString().trim(),
+      name: (item?.name || '').toString().trim(),
+      gradient: (item?.gradient || '').toString().trim(),
+      accent: (item?.accent || '').toString().trim(),
+      accent_strong: (item?.accent_strong || item?.accent || '').toString().trim(),
+      accent_soft: (item?.accent_soft || item?.accent || '').toString().trim(),
+    }))
+    .filter((item) => item.id && item.gradient && item.accent);
+
+  const rawThemeConfig = data?.theme_config || {};
+  const lightTheme = rawThemeConfig?.light || {};
+  const darkTheme = rawThemeConfig?.dark || {};
+  state.themeConfig = {
+    light: {
+      solid: normalizeThemePresetList(lightTheme.solid),
+      gradient: normalizeThemePresetList(lightTheme.gradient),
+    },
+    dark: {
+      solid: normalizeThemePresetList(darkTheme.solid),
+      gradient: normalizeThemePresetList(darkTheme.gradient),
+    },
+  };
+  if (!state.themeConfig.light.solid.length && !state.themeConfig.light.gradient.length) {
+    state.themeConfig.light = { ...fallbackThemeConfig.light };
+  }
+  if (!state.themeConfig.dark.solid.length && !state.themeConfig.dark.gradient.length) {
+    state.themeConfig.dark = { ...fallbackThemeConfig.dark };
+  }
+  ensureThemePreset('light');
+  ensureThemePreset('dark');
+  const savedMode = normalizeThemeMode(localStorage.getItem(themeStorageKey));
+  state.themeMode = savedMode;
+  applyTheme(savedMode, { persist: false });
 
   const configuredLocales = Array.isArray(data?.i18n?.locales)
     ? data.i18n.locales

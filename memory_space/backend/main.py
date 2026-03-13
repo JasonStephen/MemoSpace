@@ -22,6 +22,7 @@ from config import (
     get_backup_max_count,
     get_locale_labels,
     get_supported_locales,
+    get_theme_config,
 )
 from db import execute, fetch_all, fetch_one, init_db
 from schemas import HiddenStatusIn, MindMemoryIn, MusicMemoryIn
@@ -148,6 +149,7 @@ def get_ui_config() -> dict[str, object]:
     return {
         'link_options': LINK_OPTIONS,
         'color_config': COLOR_CONFIG,
+        'theme_config': get_theme_config(),
         'i18n': {
             'locales': get_supported_locales(),
             'default_locale': get_default_locale(),

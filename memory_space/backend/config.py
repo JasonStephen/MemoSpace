@@ -1,22 +1,100 @@
 from __future__ import annotations
 
 import configparser
+import json
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / 'config.cfg'
 LOCALES_DIR = BASE_DIR / 'frontend' / 'static' / 'locales'
+THEME_PRESETS_FILE = BASE_DIR / 'theme_presets.json'
 DEFAULT_APP_VERSION = 'dev'
 DEFAULT_LOCALE = 'zh-Hans'
 FALLBACK_LOCALES = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko']
 DEFAULT_BACKUP_INTERVAL_MINUTES = 30
 DEFAULT_BACKUP_MAX_COUNT = 24
+FALLBACK_THEME_CONFIG: dict[str, dict[str, list[dict[str, str]]]] = {
+    'light': {
+        'solid': [
+            {
+                'id': 'fallback-light-solid',
+                'name': 'Default Light',
+                'gradient': 'linear-gradient(180deg, #f8faff 0%, #f3f5fb 100%)',
+                'accent': '#4f46e5',
+                'accent_strong': '#4338ca',
+                'accent_soft': '#a5b4fc',
+            }
+        ],
+        'gradient': [],
+    },
+    'dark': {
+        'solid': [
+            {
+                'id': 'fallback-dark-solid',
+                'name': 'Default Dark',
+                'gradient': 'radial-gradient(circle at top, #1a2233 0%, #0f1420 58%)',
+                'accent': '#60a5fa',
+                'accent_strong': '#3b82f6',
+                'accent_soft': '#93c5fd',
+            }
+        ],
+        'gradient': [],
+    },
+}
 
 
 def _load_runtime_config() -> configparser.ConfigParser:
     parser = configparser.ConfigParser()
     parser.read(CONFIG_FILE, encoding='utf-8')
     return parser
+
+
+def _load_theme_config() -> dict[str, dict[str, list[dict[str, str]]]]:
+    if not THEME_PRESETS_FILE.exists():
+        return FALLBACK_THEME_CONFIG
+    try:
+        raw = json.loads(THEME_PRESETS_FILE.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return FALLBACK_THEME_CONFIG
+
+    result: dict[str, dict[str, list[dict[str, str]]]] = {}
+    for mode in ('light', 'dark'):
+        mode_data = raw.get(mode, {}) if isinstance(raw, dict) else {}
+        solid = mode_data.get('solid', []) if isinstance(mode_data, dict) else []
+        gradient = mode_data.get('gradient', []) if isinstance(mode_data, dict) else []
+
+        def normalize_presets(items: object) -> list[dict[str, str]]:
+            presets: list[dict[str, str]] = []
+            if not isinstance(items, list):
+                return presets
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                preset_id = str(item.get('id', '')).strip()
+                gradient_value = str(item.get('gradient', '')).strip()
+                accent = str(item.get('accent', '')).strip()
+                if not preset_id or not gradient_value or not accent:
+                    continue
+                presets.append(
+                    {
+                        'id': preset_id,
+                        'name': str(item.get('name', preset_id)).strip() or preset_id,
+                        'gradient': gradient_value,
+                        'accent': accent,
+                        'accent_strong': str(item.get('accent_strong', accent)).strip() or accent,
+                        'accent_soft': str(item.get('accent_soft', accent)).strip() or accent,
+                    }
+                )
+            return presets
+
+        normalized_solid = normalize_presets(solid)
+        normalized_gradient = normalize_presets(gradient)
+        if not normalized_solid and not normalized_gradient:
+            fallback_mode = FALLBACK_THEME_CONFIG[mode]
+            normalized_solid = fallback_mode['solid'][:]
+            normalized_gradient = fallback_mode['gradient'][:]
+        result[mode] = {'solid': normalized_solid, 'gradient': normalized_gradient}
+    return result
 
 
 def _scan_locale_files() -> list[str]:
@@ -157,6 +235,10 @@ def get_backup_max_count() -> int:
         fallback=DEFAULT_BACKUP_MAX_COUNT,
         min_value=1,
     )
+
+
+def get_theme_config() -> dict[str, dict[str, list[dict[str, str]]]]:
+    return _load_theme_config()
 
 
 APP_VERSION = _load_app_version()

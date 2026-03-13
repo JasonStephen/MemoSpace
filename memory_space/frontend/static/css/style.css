@@ -12,6 +12,10 @@
   --radius-md: 14px;
   --transition: 260ms cubic-bezier(.2, .8, .2, 1);
   --detail-width: 420px;
+  --detail-panel-bg: color-mix(in srgb, var(--panel) 92%, transparent);
+  --theme-accent: #4f46e5;
+  --theme-accent-strong: #4338ca;
+  --theme-accent-soft: #a5b4fc;
   --scrollbar-thumb: rgba(100, 116, 139, 0.55);
   --scrollbar-thumb-hover: rgba(71, 85, 105, 0.72);
   --scrollbar-track: rgba(148, 163, 184, 0.16);
@@ -54,6 +58,9 @@ html[data-theme="dark"] {
   --subtext: #98a4ba;
   --border: rgba(148, 163, 184, 0.18);
   --shadow: 0 18px 48px rgba(2, 6, 23, 0.45);
+  --theme-accent: #60a5fa;
+  --theme-accent-strong: #3b82f6;
+  --theme-accent-soft: #93c5fd;
   --scrollbar-thumb: rgba(98, 121, 166, 0.72);
   --scrollbar-thumb-hover: rgba(126, 152, 204, 0.86);
   --scrollbar-track: rgba(36, 48, 74, 0.5);
@@ -83,7 +90,7 @@ body.panel-open .content-shell { margin-left: var(--detail-width); }
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--detail-width);
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  background: var(--detail-panel-bg);
   backdrop-filter: blur(18px);
   border-right: 1px solid var(--border);
   box-shadow: var(--shadow);
@@ -247,7 +254,7 @@ body.panel-open .detail-panel { transform: translateX(0); }
 }
 
 .theme-option.active {
-  background: #e5eaf4;
+  background: color-mix(in srgb, var(--theme-accent-soft) 42%, #e5eaf4 58%);
 }
 
 .search-filter-wrap {
@@ -355,8 +362,8 @@ body.panel-open .detail-panel { transform: translateX(0); }
 .search-box input:focus,
 .memory-form input:focus,
 .memory-form textarea:focus {
-  border-color: rgba(109, 94, 252, 0.5);
-  box-shadow: 0 0 0 4px rgba(109, 94, 252, 0.08);
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme-accent) 22%, transparent);
 }
 
 .search-icon {
@@ -386,9 +393,9 @@ body.panel-open .detail-panel { transform: translateX(0); }
 }
 
 .primary-btn {
-  background: #121826;
+  background: var(--theme-accent-strong);
   color: #fff;
-  box-shadow: 0 12px 24px rgba(18, 24, 38, 0.18);
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--theme-accent-strong) 40%, transparent);
 }
 
 .secondary-btn { background: #edf1f7; color: var(--text); }
@@ -574,8 +581,8 @@ body.panel-open .detail-panel { transform: translateX(0); }
   line-height: 1;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(109, 94, 252, 0.1);
-  color: #5846fb;
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  color: var(--theme-accent-strong);
 }
 
 .card-tag-more {
@@ -642,15 +649,15 @@ body.panel-open .detail-panel { transform: translateX(0); }
 }
 
 .link-launch-hint a {
-  color: #4f46e5;
+  color: var(--theme-accent-strong);
   text-decoration: underline;
 }
 
 .tag-pill, .link-chip { padding: 7px 12px; font-size: 13px; }
 
 .tag-pill {
-  background: rgba(109, 94, 252, 0.1);
-  color: #5846fb;
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  color: var(--theme-accent-strong);
 }
 
 .link-chip {
@@ -1049,6 +1056,42 @@ body.panel-open .detail-panel { transform: translateX(0); }
   font-size: 16px;
 }
 
+.settings-theme-mode-hint {
+  margin: 10px 0 14px;
+  color: var(--subtext);
+  font-size: 12px;
+}
+
+.settings-theme-group {
+  margin-top: 12px;
+}
+
+.settings-theme-group h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--subtext);
+}
+
+.theme-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 8px;
+  max-width: 360px;
+}
+
+.theme-preset-btn {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: var(--preset-bg, var(--bg-gradient));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.theme-preset-btn.active {
+  border-color: #111827;
+}
+
 .settings-theme-wrap {
   width: fit-content;
 }
@@ -1086,6 +1129,10 @@ html[data-theme="dark"] .settings-nav-btn {
   background: #242f45;
 }
 
+html[data-theme="dark"] .theme-preset-btn.active {
+  border-color: #dbe7ff;
+}
+
 html[data-theme="dark"] .icon-btn {
   color: #dbe7ff;
   border-color: rgba(148, 163, 184, 0.32);
@@ -1096,7 +1143,7 @@ html[data-theme="dark"] .icon-btn:hover {
 }
 
 html[data-theme="dark"] .primary-btn {
-  background: #3a5be0;
+  background: var(--theme-accent-strong);
 }
 
 html[data-theme="dark"] .panel-close {

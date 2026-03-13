@@ -1,0 +1,74 @@
+{
+  "light": {
+    "solid": [
+      {"id":"l-solid-01","name":"Azure","gradient":"linear-gradient(180deg,#f5f9ff 0%,#d8e9ff 100%)","accent":"#3b82f6","accent_strong":"#2563eb","accent_soft":"#93c5fd"},
+      {"id":"l-solid-02","name":"Mint","gradient":"linear-gradient(180deg,#f2fffb 0%,#cff7e9 100%)","accent":"#10b981","accent_strong":"#059669","accent_soft":"#6ee7b7"},
+      {"id":"l-solid-03","name":"Rose","gradient":"linear-gradient(180deg,#fff5f8 0%,#ffd8e5 100%)","accent":"#ec4899","accent_strong":"#db2777","accent_soft":"#f9a8d4"},
+      {"id":"l-solid-04","name":"Amber","gradient":"linear-gradient(180deg,#fffaf2 0%,#ffe4b5 100%)","accent":"#f59e0b","accent_strong":"#d97706","accent_soft":"#fcd34d"},
+      {"id":"l-solid-05","name":"Sky","gradient":"linear-gradient(180deg,#f2fcff 0%,#cdefff 100%)","accent":"#0ea5e9","accent_strong":"#0284c7","accent_soft":"#7dd3fc"},
+      {"id":"l-solid-06","name":"Lime","gradient":"linear-gradient(180deg,#f8fff2 0%,#dff5bf 100%)","accent":"#84cc16","accent_strong":"#65a30d","accent_soft":"#bef264"},
+      {"id":"l-solid-07","name":"Coral","gradient":"linear-gradient(180deg,#fff6f2 0%,#ffd7c8 100%)","accent":"#f97316","accent_strong":"#ea580c","accent_soft":"#fdba74"},
+      {"id":"l-solid-08","name":"Violet","gradient":"linear-gradient(180deg,#f7f5ff 0%,#e1d8ff 100%)","accent":"#8b5cf6","accent_strong":"#7c3aed","accent_soft":"#c4b5fd"},
+      {"id":"l-solid-09","name":"Indigo","gradient":"linear-gradient(180deg,#f4f6ff 0%,#d8ddff 100%)","accent":"#6366f1","accent_strong":"#4f46e5","accent_soft":"#a5b4fc"},
+      {"id":"l-solid-10","name":"Teal","gradient":"linear-gradient(180deg,#f2fffe 0%,#c8f3ef 100%)","accent":"#14b8a6","accent_strong":"#0d9488","accent_soft":"#5eead4"},
+      {"id":"l-solid-11","name":"Peach","gradient":"linear-gradient(180deg,#fff8f4 0%,#ffe3d1 100%)","accent":"#fb7185","accent_strong":"#e11d48","accent_soft":"#fda4af"},
+      {"id":"l-solid-12","name":"Slate","gradient":"linear-gradient(180deg,#f8fafc 0%,#e2e8f0 100%)","accent":"#64748b","accent_strong":"#475569","accent_soft":"#94a3b8"},
+      {"id":"l-solid-13","name":"Ocean","gradient":"linear-gradient(180deg,#f2f9ff 0%,#c7e2ff 100%)","accent":"#2563eb","accent_strong":"#1d4ed8","accent_soft":"#93c5fd"},
+      {"id":"l-solid-14","name":"Forest","gradient":"linear-gradient(180deg,#f4fff6 0%,#d1f1d9 100%)","accent":"#16a34a","accent_strong":"#15803d","accent_soft":"#86efac"},
+      {"id":"l-solid-15","name":"Magenta","gradient":"linear-gradient(180deg,#fff5ff 0%,#f3d6ff 100%)","accent":"#c026d3","accent_strong":"#a21caf","accent_soft":"#e879f9"}
+    ],
+    "gradient": [
+      {"id":"l-grad-01","name":"Blue Breeze","gradient":"linear-gradient(135deg,#e0f2ff 0%,#eef2ff 100%)","accent":"#3b82f6","accent_strong":"#2563eb","accent_soft":"#93c5fd"},
+      {"id":"l-grad-02","name":"Mint Lemon","gradient":"linear-gradient(135deg,#dcfce7 0%,#fef9c3 100%)","accent":"#16a34a","accent_strong":"#15803d","accent_soft":"#86efac"},
+      {"id":"l-grad-03","name":"Rose Dawn","gradient":"linear-gradient(135deg,#ffe4e6 0%,#fce7f3 100%)","accent":"#e11d48","accent_strong":"#be123c","accent_soft":"#fda4af"},
+      {"id":"l-grad-04","name":"Sky Peach","gradient":"linear-gradient(135deg,#dbeafe 0%,#ffedd5 100%)","accent":"#0284c7","accent_strong":"#0369a1","accent_soft":"#7dd3fc"},
+      {"id":"l-grad-05","name":"Lavender","gradient":"linear-gradient(135deg,#ede9fe 0%,#dbeafe 100%)","accent":"#7c3aed","accent_strong":"#6d28d9","accent_soft":"#c4b5fd"},
+      {"id":"l-grad-06","name":"Aqua Pop","gradient":"linear-gradient(135deg,#ccfbf1 0%,#cffafe 100%)","accent":"#0d9488","accent_strong":"#0f766e","accent_soft":"#5eead4"},
+      {"id":"l-grad-07","name":"Sunrise","gradient":"linear-gradient(135deg,#fef3c7 0%,#ffe4e6 100%)","accent":"#d97706","accent_strong":"#b45309","accent_soft":"#fcd34d"},
+      {"id":"l-grad-08","name":"Berry Milk","gradient":"linear-gradient(135deg,#fce7f3 0%,#e0e7ff 100%)","accent":"#c026d3","accent_strong":"#a21caf","accent_soft":"#e879f9"},
+      {"id":"l-grad-09","name":"Mojito","gradient":"linear-gradient(135deg,#dcfce7 0%,#d9f99d 100%)","accent":"#65a30d","accent_strong":"#4d7c0f","accent_soft":"#bef264"},
+      {"id":"l-grad-10","name":"Seafoam","gradient":"linear-gradient(135deg,#cffafe 0%,#d1fae5 100%)","accent":"#0891b2","accent_strong":"#0e7490","accent_soft":"#67e8f9"},
+      {"id":"l-grad-11","name":"Candy","gradient":"linear-gradient(135deg,#ffe4e6 0%,#fef9c3 100%)","accent":"#f43f5e","accent_strong":"#e11d48","accent_soft":"#fda4af"},
+      {"id":"l-grad-12","name":"Cloud","gradient":"linear-gradient(135deg,#f1f5f9 0%,#dbeafe 100%)","accent":"#475569","accent_strong":"#334155","accent_soft":"#94a3b8"},
+      {"id":"l-grad-13","name":"Neon Ice","gradient":"linear-gradient(135deg,#cffafe 0%,#e9d5ff 100%)","accent":"#0ea5e9","accent_strong":"#0284c7","accent_soft":"#7dd3fc"},
+      {"id":"l-grad-14","name":"Petal","gradient":"linear-gradient(135deg,#fdf2f8 0%,#fae8ff 100%)","accent":"#db2777","accent_strong":"#be185d","accent_soft":"#f9a8d4"},
+      {"id":"l-grad-15","name":"Soft Earth","gradient":"linear-gradient(135deg,#ffedd5 0%,#dcfce7 100%)","accent":"#ea580c","accent_strong":"#c2410c","accent_soft":"#fdba74"}
+    ]
+  },
+  "dark": {
+    "solid": [
+      {"id":"d-solid-01","name":"Midnight Blue","gradient":"radial-gradient(circle at top,#1e3a8a 0%,#0f1420 64%)","accent":"#60a5fa","accent_strong":"#3b82f6","accent_soft":"#93c5fd"},
+      {"id":"d-solid-02","name":"Dark Mint","gradient":"radial-gradient(circle at top,#065f46 0%,#0f1420 64%)","accent":"#34d399","accent_strong":"#10b981","accent_soft":"#6ee7b7"},
+      {"id":"d-solid-03","name":"Night Rose","gradient":"radial-gradient(circle at top,#831843 0%,#0f1420 64%)","accent":"#f472b6","accent_strong":"#ec4899","accent_soft":"#f9a8d4"},
+      {"id":"d-solid-04","name":"Dark Amber","gradient":"radial-gradient(circle at top,#78350f 0%,#0f1420 64%)","accent":"#fbbf24","accent_strong":"#f59e0b","accent_soft":"#fcd34d"},
+      {"id":"d-solid-05","name":"Deep Sky","gradient":"radial-gradient(circle at top,#0c4a6e 0%,#0f1420 64%)","accent":"#38bdf8","accent_strong":"#0ea5e9","accent_soft":"#7dd3fc"},
+      {"id":"d-solid-06","name":"Night Lime","gradient":"radial-gradient(circle at top,#365314 0%,#0f1420 64%)","accent":"#a3e635","accent_strong":"#84cc16","accent_soft":"#bef264"},
+      {"id":"d-solid-07","name":"Dark Coral","gradient":"radial-gradient(circle at top,#7c2d12 0%,#0f1420 64%)","accent":"#fb923c","accent_strong":"#f97316","accent_soft":"#fdba74"},
+      {"id":"d-solid-08","name":"Night Violet","gradient":"radial-gradient(circle at top,#4c1d95 0%,#0f1420 64%)","accent":"#a78bfa","accent_strong":"#8b5cf6","accent_soft":"#c4b5fd"},
+      {"id":"d-solid-09","name":"Night Indigo","gradient":"radial-gradient(circle at top,#312e81 0%,#0f1420 64%)","accent":"#818cf8","accent_strong":"#6366f1","accent_soft":"#a5b4fc"},
+      {"id":"d-solid-10","name":"Dark Teal","gradient":"radial-gradient(circle at top,#134e4a 0%,#0f1420 64%)","accent":"#2dd4bf","accent_strong":"#14b8a6","accent_soft":"#5eead4"},
+      {"id":"d-solid-11","name":"Dark Peach","gradient":"radial-gradient(circle at top,#7f1d1d 0%,#0f1420 64%)","accent":"#fb7185","accent_strong":"#f43f5e","accent_soft":"#fda4af"},
+      {"id":"d-solid-12","name":"Night Slate","gradient":"radial-gradient(circle at top,#334155 0%,#0f1420 64%)","accent":"#94a3b8","accent_strong":"#64748b","accent_soft":"#cbd5e1"},
+      {"id":"d-solid-13","name":"Deep Ocean","gradient":"radial-gradient(circle at top,#1d4ed8 0%,#0f1420 64%)","accent":"#60a5fa","accent_strong":"#2563eb","accent_soft":"#93c5fd"},
+      {"id":"d-solid-14","name":"Dark Forest","gradient":"radial-gradient(circle at top,#166534 0%,#0f1420 64%)","accent":"#4ade80","accent_strong":"#22c55e","accent_soft":"#86efac"},
+      {"id":"d-solid-15","name":"Dark Magenta","gradient":"radial-gradient(circle at top,#701a75 0%,#0f1420 64%)","accent":"#e879f9","accent_strong":"#d946ef","accent_soft":"#f0abfc"}
+    ],
+    "gradient": [
+      {"id":"d-grad-01","name":"Aurora Blue","gradient":"linear-gradient(135deg,#10213f 0%,#1e3a8a 55%,#0f1420 100%)","accent":"#60a5fa","accent_strong":"#3b82f6","accent_soft":"#93c5fd"},
+      {"id":"d-grad-02","name":"Neon Mint","gradient":"linear-gradient(135deg,#0f2f2b 0%,#065f46 55%,#0f1420 100%)","accent":"#34d399","accent_strong":"#10b981","accent_soft":"#6ee7b7"},
+      {"id":"d-grad-03","name":"Night Blossom","gradient":"linear-gradient(135deg,#3b1028 0%,#831843 55%,#0f1420 100%)","accent":"#f472b6","accent_strong":"#ec4899","accent_soft":"#f9a8d4"},
+      {"id":"d-grad-04","name":"Dark Ember","gradient":"linear-gradient(135deg,#3a2210 0%,#78350f 55%,#0f1420 100%)","accent":"#fbbf24","accent_strong":"#f59e0b","accent_soft":"#fcd34d"},
+      {"id":"d-grad-05","name":"Deep Cyan","gradient":"linear-gradient(135deg,#102b39 0%,#0c4a6e 55%,#0f1420 100%)","accent":"#38bdf8","accent_strong":"#0ea5e9","accent_soft":"#7dd3fc"},
+      {"id":"d-grad-06","name":"Lime Pulse","gradient":"linear-gradient(135deg,#1f2e16 0%,#365314 55%,#0f1420 100%)","accent":"#a3e635","accent_strong":"#84cc16","accent_soft":"#bef264"},
+      {"id":"d-grad-07","name":"Coral Night","gradient":"linear-gradient(135deg,#3b1f17 0%,#7c2d12 55%,#0f1420 100%)","accent":"#fb923c","accent_strong":"#f97316","accent_soft":"#fdba74"},
+      {"id":"d-grad-08","name":"Violet Arc","gradient":"linear-gradient(135deg,#28193f 0%,#4c1d95 55%,#0f1420 100%)","accent":"#a78bfa","accent_strong":"#8b5cf6","accent_soft":"#c4b5fd"},
+      {"id":"d-grad-09","name":"Indigo Wave","gradient":"linear-gradient(135deg,#1f2142 0%,#312e81 55%,#0f1420 100%)","accent":"#818cf8","accent_strong":"#6366f1","accent_soft":"#a5b4fc"},
+      {"id":"d-grad-10","name":"Teal Rain","gradient":"linear-gradient(135deg,#112f2e 0%,#134e4a 55%,#0f1420 100%)","accent":"#2dd4bf","accent_strong":"#14b8a6","accent_soft":"#5eead4"},
+      {"id":"d-grad-11","name":"Crimson Dust","gradient":"linear-gradient(135deg,#3b1b25 0%,#7f1d1d 55%,#0f1420 100%)","accent":"#fb7185","accent_strong":"#f43f5e","accent_soft":"#fda4af"},
+      {"id":"d-grad-12","name":"Steel Mist","gradient":"linear-gradient(135deg,#1d2738 0%,#334155 55%,#0f1420 100%)","accent":"#94a3b8","accent_strong":"#64748b","accent_soft":"#cbd5e1"},
+      {"id":"d-grad-13","name":"Ocean Beam","gradient":"linear-gradient(135deg,#15223f 0%,#1d4ed8 55%,#0f1420 100%)","accent":"#60a5fa","accent_strong":"#2563eb","accent_soft":"#93c5fd"},
+      {"id":"d-grad-14","name":"Forest Mist","gradient":"linear-gradient(135deg,#12281d 0%,#166534 55%,#0f1420 100%)","accent":"#4ade80","accent_strong":"#22c55e","accent_soft":"#86efac"},
+      {"id":"d-grad-15","name":"Magenta Dust","gradient":"linear-gradient(135deg,#2f1835 0%,#701a75 55%,#0f1420 100%)","accent":"#e879f9","accent_strong":"#d946ef","accent_soft":"#f0abfc"}
+    ]
+  }
+}
