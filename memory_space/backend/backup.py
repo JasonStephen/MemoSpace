@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import logging
 import sqlite3
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 BACKUP_DIR = DATA_DIR / 'backups'
 BACKUP_DIR.mkdir(exist_ok=True)
+BACKUP_LOCK_FILE = BACKUP_DIR / f'{DB_PATH.stem}.backup.lock'
+BACKUP_LOCK_STALE_SECONDS = 2 * 60 * 60
 
 
 def _backup_filename() -> str:
@@ -24,13 +28,54 @@ def _list_backups() -> list[Path]:
     return sorted(BACKUP_DIR.glob(pattern), key=lambda item: item.name, reverse=True)
 
 
-def rotate_backups(max_backups: int) -> None:
-    backups = _list_backups()
-    for old_file in backups[max_backups:]:
+def _remove_with_retry(path: Path, retries: int = 3, delay_seconds: float = 0.25) -> bool:
+    for attempt in range(retries):
         try:
-            old_file.unlink(missing_ok=True)
-        except OSError as exc:
-            logger.warning('failed to remove old backup %s: %s', old_file, exc)
+            path.unlink(missing_ok=True)
+            return True
+        except OSError:
+            if attempt >= retries - 1:
+                break
+            time.sleep(delay_seconds * (attempt + 1))
+    return False
+
+
+def _try_acquire_backup_lock() -> tuple[int | None, bool]:
+    if BACKUP_LOCK_FILE.exists():
+        try:
+            age_seconds = time.time() - BACKUP_LOCK_FILE.stat().st_mtime
+            if age_seconds > BACKUP_LOCK_STALE_SECONDS:
+                _remove_with_retry(BACKUP_LOCK_FILE, retries=2, delay_seconds=0.15)
+        except OSError:
+            pass
+
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(str(BACKUP_LOCK_FILE), flags)
+    except FileExistsError:
+        return None, False
+    os.write(fd, f'pid={os.getpid()} time={int(time.time())}\n'.encode('utf-8'))
+    return fd, True
+
+
+def _release_backup_lock(fd: int | None) -> None:
+    if fd is None:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    _remove_with_retry(BACKUP_LOCK_FILE, retries=2, delay_seconds=0.1)
+
+
+def rotate_backups(max_backups: int) -> None:
+    keep = max(1, max_backups)
+    backups = _list_backups()
+    # Keep only the latest backups and remove all remaining old files.
+    for old_file in backups[keep:]:
+        removed = _remove_with_retry(old_file)
+        if not removed:
+            logger.warning('failed to remove old backup %s: file is still in use', old_file)
 
 
 def create_db_backup(max_backups: int) -> Path | None:
@@ -38,12 +83,19 @@ def create_db_backup(max_backups: int) -> Path | None:
         logger.warning('skip backup: database file not found at %s', DB_PATH)
         return None
 
-    backup_path = BACKUP_DIR / _backup_filename()
-    with sqlite3.connect(DB_PATH) as source_conn, sqlite3.connect(backup_path) as target_conn:
-        source_conn.backup(target_conn)
+    lock_fd, acquired = _try_acquire_backup_lock()
+    if not acquired:
+        logger.info('skip backup: another process is handling backup rotation')
+        return None
 
-    rotate_backups(max_backups=max_backups)
-    return backup_path
+    try:
+        backup_path = BACKUP_DIR / _backup_filename()
+        with sqlite3.connect(DB_PATH) as source_conn, sqlite3.connect(backup_path) as target_conn:
+            source_conn.backup(target_conn)
+        rotate_backups(max_backups=max_backups)
+        return backup_path
+    finally:
+        _release_backup_lock(lock_fd)
 
 
 class BackupScheduler:
