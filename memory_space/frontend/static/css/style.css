@@ -11,6 +11,7 @@
   --radius-lg: 18px;
   --radius-md: 14px;
   --transition: 260ms cubic-bezier(.2, .8, .2, 1);
+  --theme-switch-duration: 500ms;
   --detail-width: 420px;
   --detail-panel-bg: color-mix(in srgb, var(--panel) 92%, transparent);
   --theme-accent: #4f46e5;
@@ -19,6 +20,8 @@
   --scrollbar-thumb: rgba(100, 116, 139, 0.55);
   --scrollbar-thumb-hover: rgba(71, 85, 105, 0.72);
   --scrollbar-track: rgba(148, 163, 184, 0.16);
+  --app-font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --prev-bg-gradient: linear-gradient(180deg, #f8faff 0%, #f3f5fb 100%);
 }
 
 * { box-sizing: border-box; }
@@ -72,19 +75,67 @@ html, body {
   min-height: 100%;
   background: var(--bg-gradient);
   color: var(--text);
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--app-font-family);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--prev-bg-gradient);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: clip;
+  z-index: 1;
+}
+
+html.theme-switching body::before {
+  animation: theme-bg-fade var(--theme-switch-duration) ease forwards;
+}
+
+@keyframes theme-bg-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+html.theme-switching body,
+html.theme-switching .detail-panel,
+html.theme-switching .modal-card,
+html.theme-switching .card,
+html.theme-switching .status-pill,
+html.theme-switching .theme-wrap,
+html.theme-switching .secondary-btn,
+html.theme-switching .icon-btn,
+html.theme-switching .search-box input,
+html.theme-switching .memory-form input,
+html.theme-switching .memory-form textarea,
+html.theme-switching .memory-form select,
+html.theme-switching .settings-language-select,
+html.theme-switching .settings-font-select,
+html.theme-switching .link-chip,
+html.theme-switching .tag-pill,
+html.theme-switching .panel-close,
+html.theme-switching .detail-markdown,
+html.theme-switching .card-desc,
+html.theme-switching .detail-short-desc {
+  transition:
+    background var(--theme-switch-duration) ease,
+    background-color var(--theme-switch-duration) ease,
+    color var(--theme-switch-duration) ease,
+    border-color var(--theme-switch-duration) ease,
+    box-shadow var(--theme-switch-duration) ease;
 }
 
 button, input, textarea { font: inherit; }
 button { cursor: pointer; border: none; }
 
 body.panel-open .content-shell { margin-left: var(--detail-width); }
-
-.app-shell {
-  min-height: 100vh;
-  position: relative;
-  overflow-x: clip;
-}
 
 .detail-panel {
   position: fixed;
@@ -1116,6 +1167,43 @@ body.panel-open .detail-panel { transform: translateX(0); }
   color: var(--text);
 }
 
+.settings-font-help,
+.settings-font-current {
+  margin: 0;
+  color: var(--subtext);
+  font-size: 13px;
+}
+
+.settings-font-controls {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-font-select {
+  width: min(440px, 100%);
+  min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  color: var(--text);
+  outline: none;
+}
+
+.settings-font-select:focus {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme-accent) 22%, transparent);
+}
+
+.settings-font-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--panel) 82%, #9ca3af 18%);
+}
+
 .confirm-text {
   color: #4b5567;
   padding: 8px 22px 0;
@@ -1188,6 +1276,12 @@ html[data-theme="dark"] .memory-form select {
 }
 
 html[data-theme="dark"] .settings-language-select {
+  background: #1b2436;
+  border-color: rgba(148, 163, 184, 0.28);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .settings-font-select {
   background: #1b2436;
   border-color: rgba(148, 163, 184, 0.28);
   color: var(--text);

@@ -9,6 +9,7 @@ CONFIG_FILE = BASE_DIR / 'config.cfg'
 LOCALES_DIR = BASE_DIR / 'frontend' / 'static' / 'locales'
 THEME_PRESETS_FILE = BASE_DIR / 'theme_presets.json'
 DEFAULT_APP_VERSION = 'dev'
+DEFAULT_APP_FONT_FAMILY = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
 DEFAULT_LOCALE = 'zh-Hans'
 FALLBACK_LOCALES = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko']
 DEFAULT_LOCALE_FLAGS: dict[str, str] = {
@@ -190,6 +191,17 @@ def _load_app_version() -> str:
 
 def get_app_version() -> str:
     return _load_app_version()
+
+
+def get_app_font_family() -> str:
+    parser = _load_runtime_config()
+    raw = parser.get('app', 'custom_font_family', fallback='').strip()
+    if not raw:
+        return DEFAULT_APP_FONT_FAMILY
+    lower = raw.lower()
+    if 'microsoft yahei' in lower:
+        return f'{raw}, sans-serif'
+    return f'{raw}, "Microsoft YaHei", sans-serif'
 
 
 def get_supported_locales() -> list[str]:
