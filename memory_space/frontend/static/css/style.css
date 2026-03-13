@@ -1178,8 +1178,17 @@ html[data-theme="dark"] .memory-form select {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
+html[data-theme="dark"] .search-box input {
+  color: var(--text);
+  caret-color: var(--text);
+}
+
 html[data-theme="dark"] .memory-form input::placeholder,
 html[data-theme="dark"] .memory-form textarea::placeholder {
+  color: #8fa0be;
+}
+
+html[data-theme="dark"] .search-box input::placeholder {
   color: #8fa0be;
 }
 
