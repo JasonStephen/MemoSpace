@@ -21,10 +21,8 @@
   --scrollbar-thumb-hover: rgba(71, 85, 105, 0.72);
   --scrollbar-track: rgba(148, 163, 184, 0.16);
   --app-font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-<<<<<<< HEAD
   --prev-bg-gradient: linear-gradient(180deg, #f8faff 0%, #f3f5fb 100%);
-=======
->>>>>>> 60560c9c61fd222a2fee34e19b192773c7dbfd3d
+  --logo-filter: brightness(0) saturate(100%);
 }
 
 * { box-sizing: border-box; }
@@ -70,6 +68,7 @@ html[data-theme="dark"] {
   --scrollbar-thumb: rgba(98, 121, 166, 0.72);
   --scrollbar-thumb-hover: rgba(126, 152, 204, 0.86);
   --scrollbar-track: rgba(36, 48, 74, 0.5);
+  --logo-filter: brightness(0) saturate(100%) invert(1);
 }
 
 html, body {
@@ -79,7 +78,6 @@ html, body {
   background: var(--bg-gradient);
   color: var(--text);
   font-family: var(--app-font-family);
-<<<<<<< HEAD
 }
 
 body::before {
@@ -134,8 +132,6 @@ html.theme-switching .detail-short-desc {
     color var(--theme-switch-duration) ease,
     border-color var(--theme-switch-duration) ease,
     box-shadow var(--theme-switch-duration) ease;
-=======
->>>>>>> 60560c9c61fd222a2fee34e19b192773c7dbfd3d
 }
 
 button, input, textarea { font: inherit; }
@@ -196,6 +192,21 @@ body.panel-open .detail-panel { transform: translateX(0); }
   overflow: visible;
   text-overflow: clip;
   flex: 0 0 auto;
+}
+
+.page-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.site-logo {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: contain;
+  filter: var(--logo-filter);
 }
 
 .toolbar {

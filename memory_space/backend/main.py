@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import json
+import mimetypes
 import re
 from pathlib import Path
 from urllib.parse import urlparse
@@ -32,6 +33,10 @@ from schemas import HiddenStatusIn, MindMemoryIn, MusicMemoryIn
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / 'frontend'
 STATIC_DIR = FRONTEND_DIR / 'static'
+
+# Ensure SVG is served with the standard MIME type across platforms.
+mimetypes.add_type('image/svg+xml', '.svg')
+mimetypes.add_type('image/svg+xml', '.svgz')
 
 app = FastAPI(title='MemoSpace')
 app.add_middleware(
