@@ -1,9 +1,9 @@
 <p align="center">
   <img
-    src="./memory_space/frontend/static/img/Icon.svg"
+    src="./memory_space/frontend/static/img/MemoSpace 1920_500_TD.jpg"
     alt="MemoSpace Logo"
-    width="76"
-    style="background:#ffffff;border-radius:14px;padding:8px;"
+    width=auto
+    style="border-radius:16px"
   />
 </p>
 
