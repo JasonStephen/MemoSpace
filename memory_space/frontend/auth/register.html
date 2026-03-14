@@ -1,0 +1,39 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemoSpace Register</title>
+  <script>window.__APP_VERSION__ = "20260312.1";</script>
+  <link rel="stylesheet" href="/static/css/style.css?v=20260312.1" />
+</head>
+<body data-auth-mode="register">
+  <div class="app-shell" style="max-width:620px;margin:0 auto;padding:24px;">
+    <main class="content-shell" style="padding:24px;">
+      <header class="topbar" style="margin-bottom:24px;">
+        <h1 class="page-title">注册唯一账号</h1>
+      </header>
+      <form id="authForm" class="memory-form" style="max-width:420px;">
+        <div class="field">
+          <label for="username">用户名</label>
+          <input id="username" name="username" type="text" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" required />
+        </div>
+        <div class="field">
+          <label for="confirm_password">确认密码</label>
+          <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required />
+        </div>
+        <div class="modal-actions" style="justify-content:flex-start;">
+          <button class="primary-btn" type="submit">注册并登录</button>
+          <a class="secondary-btn" href="/public/music">去 Public</a>
+        </div>
+        <p id="authError" style="color:#ff6b6b;min-height:24px;"></p>
+      </form>
+    </main>
+  </div>
+  <script src="/static/js/auth.js?v=20260312.1"></script>
+</body>
+</html>

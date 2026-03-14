@@ -1471,6 +1471,30 @@ async function openSettingsModal() {
   updateThemeControlUI();
 }
 
+async function logoutAccount() {
+  const response = await fetch('/api/auth/logout', { method: 'POST' });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Logout failed.');
+  }
+  window.location.href = '/auth/login';
+}
+
+async function unregisterAccount() {
+  const confirmPassword = window.prompt(t('account.confirmPassword', 'Please enter your password to confirm account deletion.'));
+  if (!confirmPassword) return;
+  const response = await fetch('/api/auth/unregister', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm_password: confirmPassword }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Account deletion failed.');
+  }
+  window.location.href = '/auth/register';
+}
+
 function renderThemePresetGroup(mode, groupKey, titleKey, fallbackTitle) {
   const groups = getThemePresetsForMode(mode);
   const groupItems = groupKey === 'solid' ? groups.solid : groups.gradient;
@@ -1544,6 +1568,7 @@ function renderSettingsModal(options = {}) {
           <button type="button" class="settings-nav-btn" data-settings-target="settingsThemeSection">${escapeHtml(t('settings.nav.theme', 'Theme'))}</button>
           <button type="button" class="settings-nav-btn" data-settings-target="settingsFontSection">${escapeHtml(t('settings.nav.font', 'Font'))}</button>
           <button type="button" class="settings-nav-btn" data-settings-target="settingsLanguageSection">${escapeHtml(t('settings.nav.language', 'Language'))}</button>
+          ${pageScope === 'personal' ? `<button type="button" class="settings-nav-btn" data-settings-target="settingsAccountSection">${escapeHtml(t('settings.nav.account', 'Account'))}</button>` : ''}
         </aside>
         <div class="settings-content" id="settingsContent">
           <section class="settings-section" id="settingsThemeSection">
@@ -1601,6 +1626,18 @@ function renderSettingsModal(options = {}) {
               `).join('')}
             </select>
           </section>
+          ${
+            pageScope === 'personal'
+              ? `<section class="settings-section" id="settingsAccountSection">
+            <h3>${escapeHtml(t('settings.section.account', 'Account'))}</h3>
+            <p class="settings-font-help">${escapeHtml(t('settings.account.hint', 'Logout or unregister your account. Unregister requires password confirmation and does not delete memory data.'))}</p>
+            <div class="modal-actions" style="justify-content:flex-start;">
+              <button class="secondary-btn" type="button" id="logoutAccountBtn">${escapeHtml(t('settings.account.logout', 'Logout'))}</button>
+              <button class="danger-btn" type="button" id="unregisterAccountBtn">${escapeHtml(t('settings.account.unregister', 'Unregister Account'))}</button>
+            </div>
+          </section>`
+              : ''
+          }
         </div>
       </div>
     </div>
@@ -1639,6 +1676,21 @@ function renderSettingsModal(options = {}) {
   if (state.fontSelectionEnabled) {
     fontSelect?.addEventListener('change', applyCustomFontFromSelect);
   }
+
+  overlay.querySelector('#logoutAccountBtn')?.addEventListener('click', async () => {
+    try {
+      await logoutAccount();
+    } catch (error) {
+      alert(error.message || t('settings.account.logoutFailed', 'Logout failed.'));
+    }
+  });
+  overlay.querySelector('#unregisterAccountBtn')?.addEventListener('click', async () => {
+    try {
+      await unregisterAccount();
+    } catch (error) {
+      alert(error.message || t('settings.account.unregisterFailed', 'Account deletion failed.'));
+    }
+  });
 
   overlay.querySelectorAll('.settings-nav-btn[data-settings-target]').forEach((button) => {
     button.addEventListener('click', () => {

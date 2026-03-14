@@ -31,3 +31,17 @@ class MindMemoryIn(BaseModel):
 
 class HiddenStatusIn(BaseModel):
     hidden: bool = False
+
+
+class RegisterIn(BaseModel):
+    username: str
+    password: str
+
+
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class UnregisterIn(BaseModel):
+    confirm_password: str
