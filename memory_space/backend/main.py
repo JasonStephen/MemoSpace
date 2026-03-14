@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import atexit
 import mimetypes
@@ -6,15 +6,17 @@ import re
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.auth import router as auth_router
 from api.personal.mind import router as personal_mind_router
 from api.personal.music import router as personal_music_router
 from api.public.mind import router as public_mind_router
 from api.public.music import router as public_music_router
+from auth import get_current_user_from_request, has_registered_account, require_auth_api
 from backup import BackupScheduler
 from config import (
     COLOR_CONFIG,
@@ -96,6 +98,8 @@ async def disable_cache_for_pages_and_static(request, call_next):
         '/public/mind',
         '/personal/music',
         '/personal/mind',
+        '/auth/login',
+        '/auth/register',
     }
     if path in page_paths or path.startswith('/static/'):
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
@@ -114,22 +118,41 @@ def render_page(filename: str) -> HTMLResponse:
         count=1,
     )
     html = re.sub(r'(/static/css/style\.css\?v=)[^"]+', rf'\g<1>{app_version}', html, count=1)
+    html = re.sub(r'(/static/css/auth\.css\?v=)[^"]+', rf'\g<1>{app_version}', html, count=1)
     html = re.sub(r'(/static/js/app\.js\?v=)[^"]+', rf'\g<1>{app_version}', html, count=1)
+    html = re.sub(r'(/static/js/auth\.js\?v=)[^"]+', rf'\g<1>{app_version}', html, count=1)
     return HTMLResponse(content=html)
 
 
+def ensure_personal_access(request: Request) -> RedirectResponse | None:
+    current_user = get_current_user_from_request(request)
+    if current_user:
+        return None
+    target = '/auth/login' if has_registered_account() else '/auth/register'
+    return RedirectResponse(url=target, status_code=302)
+
+
 @app.get('/')
-def root() -> HTMLResponse:
+def root(request: Request):
+    redirect = ensure_personal_access(request)
+    if redirect:
+        return redirect
     return render_page('personal/music.html')
 
 
 @app.get('/music')
-def music_page_legacy() -> HTMLResponse:
+def music_page_legacy(request: Request):
+    redirect = ensure_personal_access(request)
+    if redirect:
+        return redirect
     return render_page('personal/music.html')
 
 
 @app.get('/mind')
-def mind_page_legacy() -> HTMLResponse:
+def mind_page_legacy(request: Request):
+    redirect = ensure_personal_access(request)
+    if redirect:
+        return redirect
     return render_page('personal/mind.html')
 
 
@@ -144,13 +167,37 @@ def public_mind_page() -> HTMLResponse:
 
 
 @app.get('/personal/music')
-def personal_music_page() -> HTMLResponse:
+def personal_music_page(request: Request):
+    redirect = ensure_personal_access(request)
+    if redirect:
+        return redirect
     return render_page('personal/music.html')
 
 
 @app.get('/personal/mind')
-def personal_mind_page() -> HTMLResponse:
+def personal_mind_page(request: Request):
+    redirect = ensure_personal_access(request)
+    if redirect:
+        return redirect
     return render_page('personal/mind.html')
+
+
+@app.get('/auth/login')
+def login_page(request: Request):
+    if get_current_user_from_request(request):
+        return RedirectResponse(url='/personal/music', status_code=302)
+    if not has_registered_account():
+        return RedirectResponse(url='/auth/register', status_code=302)
+    return render_page('auth/login.html')
+
+
+@app.get('/auth/register')
+def register_page(request: Request):
+    if get_current_user_from_request(request):
+        return RedirectResponse(url='/personal/music', status_code=302)
+    if has_registered_account():
+        return RedirectResponse(url='/auth/login', status_code=302)
+    return render_page('auth/register.html')
 
 
 @app.get('/api/config/link-options')
@@ -182,10 +229,11 @@ def get_system_status() -> dict[str, object]:
     }
 
 
+app.include_router(auth_router)
 app.include_router(public_music_router)
 app.include_router(public_mind_router)
-app.include_router(personal_music_router)
-app.include_router(personal_mind_router)
+app.include_router(personal_music_router, dependencies=[Depends(require_auth_api)])
+app.include_router(personal_mind_router, dependencies=[Depends(require_auth_api)])
 
 
 if __name__ == '__main__':

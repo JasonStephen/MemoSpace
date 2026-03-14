@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemoSpace Login</title>
+  <script>window.__APP_VERSION__ = "20260312.1";</script>
+  <link rel="stylesheet" href="/static/css/style.css?v=20260312.1" />
+  <link rel="stylesheet" href="/static/css/auth.css?v=20260312.1" />
+</head>
+<body data-auth-mode="login" class="auth-page">
+  <button class="secondary-btn auth-theme-toggle-btn" type="button" id="authSettingsToggleBtn" aria-expanded="false">Settings</button>
+  <div class="auth-theme-panel" id="authSettingsPanel"></div>
+
+  <div class="auth-wrap">
+    <section class="auth-brand">
+      <img class="auth-logo" src="/static/img/Icon.svg" alt="MemoSpace" />
+      <h1 class="auth-title" id="authBrandTitle">MemoSpace</h1>
+      <p class="auth-subtitle" id="authBrandSubtitle">Sign in to access the personal space.</p>
+    </section>
+
+    <main class="auth-panel">
+      <h2 id="authPageTitle">Sign In</h2>
+      <p class="auth-help" id="authPageHelp">Use your registered account credentials.</p>
+
+      <form id="authForm" class="memory-form auth-form">
+        <div class="field">
+          <label for="username" id="authUsernameLabel">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password" id="authPasswordLabel">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+
+        <div class="auth-actions">
+          <button class="primary-btn" type="submit" id="authSubmitBtn">Sign In</button>
+          <a class="secondary-btn" href="/public/music" id="authPublicLink">Public Space</a>
+        </div>
+
+        <p id="authError" class="auth-error"></p>
+      </form>
+    </main>
+  </div>
+
+  <script src="/static/js/auth.js?v=20260312.1"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemoSpace Register</title>
+  <script>window.__APP_VERSION__ = "20260312.1";</script>
+  <link rel="stylesheet" href="/static/css/style.css?v=20260312.1" />
+  <link rel="stylesheet" href="/static/css/auth.css?v=20260312.1" />
+</head>
+<body data-auth-mode="register" class="auth-page">
+  <button class="secondary-btn auth-theme-toggle-btn" type="button" id="authSettingsToggleBtn" aria-expanded="false">Settings</button>
+  <div class="auth-theme-panel" id="authSettingsPanel"></div>
+
+  <div class="auth-wrap">
+    <section class="auth-brand">
+      <img class="auth-logo" src="/static/img/Icon.svg" alt="MemoSpace" />
+      <h1 class="auth-title" id="authBrandTitle">MemoSpace</h1>
+      <p class="auth-subtitle" id="authBrandSubtitle">Create the one and only account for this device.</p>
+    </section>
+
+    <main class="auth-panel">
+      <h2 id="authPageTitle">Register Account</h2>
+      <p class="auth-help" id="authPageHelp">Create an account and sign in automatically.</p>
+
+      <form id="authForm" class="memory-form auth-form">
+        <div class="field">
+          <label for="username" id="authUsernameLabel">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password" id="authPasswordLabel">Password</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" required />
+        </div>
+        <div class="field" id="confirmPasswordField">
+          <label for="confirm_password" id="authConfirmPasswordLabel">Confirm Password</label>
+          <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required />
+        </div>
+
+        <div class="auth-actions">
+          <button class="primary-btn" type="submit" id="authSubmitBtn">Register</button>
+          <a class="secondary-btn" href="/public/music" id="authPublicLink">Public Space</a>
+        </div>
+
+        <p id="authError" class="auth-error"></p>
+      </form>
+    </main>
+  </div>
+
+  <script src="/static/js/auth.js?v=20260312.1"></script>
+</body>
+</html>
