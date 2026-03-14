@@ -1,5 +1,11 @@
 ﻿const pageType = document.body.dataset.pageType;
-const apiBase = pageType === 'music' ? '/api/music' : '/api/mind';
+const pageScope = document.body.dataset.pageScope === 'public' ? 'public' : 'personal';
+const pageMode = document.body.dataset.pageMode === 'readonly' ? 'readonly' : 'editable';
+const publicApiBase = `/api/public/${pageType}`;
+const personalApiBase = `/api/personal/${pageType}`;
+const readApiBase = pageScope === 'public' ? publicApiBase : personalApiBase;
+const writeApiBase = personalApiBase;
+const routeBase = pageScope === 'public' ? '/public' : '/personal';
 const fallbackDefaultLocale = 'zh-Hans';
 const fallbackAppFontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 const localeStorageKey = 'memory_space_locale';
@@ -444,6 +450,12 @@ function textOrEmpty(value) {
   return text || t('common.empty', 'Empty');
 }
 
+function isEditableItem(item) {
+  if (pageMode === 'readonly') return false;
+  if (!item) return true;
+  return (item.scope || 'personal') === 'personal';
+}
+
 function parseTags(input) {
   return input
     .split(',')
@@ -811,15 +823,20 @@ function openDetail(item) {
     ${renderSpotifyEmbed(item.links)}
     <div class="detail-markdown">${marked.parse(longDesc)}</div>
     <div class="detail-actions">
-      <button class="danger-btn" type="button" id="detailDeleteBtn">${escapeHtml(t('detail.del', 'Delete'))}</button>
+      ${isEditableItem(item)
+        ? `<button class="danger-btn" type="button" id="detailDeleteBtn">${escapeHtml(t('detail.del', 'Delete'))}</button>
       <button class="secondary-btn" type="button" id="detailEditBtn">${escapeHtml(t('detail.edit', 'Edit'))}</button>
-      <button class="secondary-btn" type="button" id="detailHiddenBtn">${escapeHtml(item.hidden ? t('detail.unhide', 'Restore') : t('detail.hide', 'Hide'))}</button>
+      <button class="secondary-btn" type="button" id="detailHiddenBtn">${escapeHtml(item.hidden ? t('detail.unhide', 'Restore') : t('detail.hide', 'Hide'))}</button>`
+        : ''}
     </div>
   `;
 
-  document.getElementById('detailDeleteBtn').addEventListener('click', () => openDeleteModal(item.id));
-  document.getElementById('detailEditBtn').addEventListener('click', () => openFormModal('edit', item));
-  document.getElementById('detailHiddenBtn').addEventListener('click', async () => {
+  const detailDeleteBtn = document.getElementById('detailDeleteBtn');
+  const detailEditBtn = document.getElementById('detailEditBtn');
+  const detailHiddenBtn = document.getElementById('detailHiddenBtn');
+  detailDeleteBtn?.addEventListener('click', () => openDeleteModal(item.id));
+  detailEditBtn?.addEventListener('click', () => openFormModal('edit', item));
+  detailHiddenBtn?.addEventListener('click', async () => {
     await updateHiddenStatus(item.id, !item.hidden);
   });
   bindExternalLinkHandlers();
@@ -1167,6 +1184,9 @@ function collectFormColor() {
 }
 
 function openFormModal(mode, item = null) {
+  if (!isEditableItem(item)) {
+    return;
+  }
   state.mode = mode;
   formModalTitle.textContent = mode === 'create' ? t('form.create', 'Add') : t('form.edit', 'Edit');
   memoryForm.innerHTML = getFormHtml(item);
@@ -1212,7 +1232,7 @@ function openFormModal(mode, item = null) {
 
     const targetId = item?.id;
     const method = mode === 'create' ? 'POST' : 'PUT';
-    const endpoint = mode === 'create' ? apiBase : `${apiBase}/${targetId}`;
+    const endpoint = mode === 'create' ? writeApiBase : `${writeApiBase}/${targetId}`;
 
     const response = await fetch(endpoint, {
       method,
@@ -1262,7 +1282,12 @@ function closeDeleteModal() {
 
 async function confirmDelete() {
   if (!state.pendingDeleteId) return;
-  const response = await fetch(`${apiBase}/${state.pendingDeleteId}`, { method: 'DELETE' });
+  const selected = state.items.find(entry => entry.id === state.pendingDeleteId);
+  if (!isEditableItem(selected)) {
+    closeDeleteModal();
+    return;
+  }
+  const response = await fetch(`${writeApiBase}/${state.pendingDeleteId}`, { method: 'DELETE' });
   if (!response.ok) {
     alert(t('form.deleteFailed', 'Delete failed.'));
     return;
@@ -1361,7 +1386,11 @@ function ensureToolbarRow(id) {
 }
 
 async function updateHiddenStatus(itemId, hidden) {
-  const response = await fetch(`${apiBase}/${itemId}/hidden`, {
+  const selected = state.items.find(entry => entry.id === itemId);
+  if (!isEditableItem(selected)) {
+    return;
+  }
+  const response = await fetch(`${writeApiBase}/${itemId}/hidden`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hidden }),
@@ -1375,10 +1404,10 @@ async function updateHiddenStatus(itemId, hidden) {
 }
 
 function getItemsEndpoint() {
-  if (state.hiddenSpace) {
-    return `${apiBase}?hidden_only=1`;
+  if (state.hiddenSpace && pageMode !== 'readonly') {
+    return `${readApiBase}?hidden_only=1`;
   }
-  return apiBase;
+  return readApiBase;
 }
 
 async function toggleHiddenSpace() {
@@ -1668,21 +1697,23 @@ function renderToolbarControls() {
     ? t('common.switchToMind', 'Go Mind')
     : t('common.switchToMusic', 'Go Music');
   switchBtn.addEventListener('click', () => {
-    window.location.href = pageType === 'music' ? '/mind' : '/music';
+    window.location.href = pageType === 'music' ? `${routeBase}/mind` : `${routeBase}/music`;
   });
   toolbar.appendChild(switchBtn);
 
-  const hiddenSpaceBtn = document.createElement('button');
-  hiddenSpaceBtn.type = 'button';
-  hiddenSpaceBtn.className = 'secondary-btn nav-btn';
-  hiddenSpaceBtn.id = 'hiddenSpaceBtn';
-  hiddenSpaceBtn.textContent = state.hiddenSpace
-    ? t('hidden.exit', 'Exit Hidden Space')
-    : t('hidden.enter', 'Hidden Space');
-  hiddenSpaceBtn.addEventListener('click', () => {
-    void toggleHiddenSpace();
-  });
-  toolbar.appendChild(hiddenSpaceBtn);
+  if (pageMode !== 'readonly') {
+    const hiddenSpaceBtn = document.createElement('button');
+    hiddenSpaceBtn.type = 'button';
+    hiddenSpaceBtn.className = 'secondary-btn nav-btn';
+    hiddenSpaceBtn.id = 'hiddenSpaceBtn';
+    hiddenSpaceBtn.textContent = state.hiddenSpace
+      ? t('hidden.exit', 'Exit Hidden Space')
+      : t('hidden.enter', 'Hidden Space');
+    hiddenSpaceBtn.addEventListener('click', () => {
+      void toggleHiddenSpace();
+    });
+    toolbar.appendChild(hiddenSpaceBtn);
+  }
 
   const statusWrap = document.createElement('div');
   statusWrap.className = 'status-wrap';
@@ -1727,6 +1758,7 @@ function applyStaticTexts() {
   if (pageTitleEl) pageTitleEl.textContent = title;
   searchInput.placeholder = t('common.search', 'Search');
   addBtn.textContent = t('common.add', 'Add');
+  addBtn.style.display = pageMode === 'readonly' ? 'none' : '';
   panelCloseBtn.textContent = '☰';
   panelCloseBtn.title = t('common.close', 'Close');
   panelCloseBtn.setAttribute('aria-label', t('common.close', 'Close'));
@@ -1864,6 +1896,7 @@ async function loadItems() {
   const data = await response.json();
   state.items = data.map(item => ({
     ...item,
+    scope: item.scope || pageScope,
     tags: Array.isArray(item.tags) ? item.tags : [],
     links: normaliseLinks(item.links),
     hidden: !!item.hidden,
@@ -1872,7 +1905,10 @@ async function loadItems() {
 }
 
 searchInput.addEventListener('input', applySearch);
-addBtn.addEventListener('click', () => openFormModal('create'));
+addBtn.addEventListener('click', () => {
+  if (pageMode === 'readonly') return;
+  openFormModal('create');
+});
 panelCloseBtn.addEventListener('click', closeDetail);
 confirmDeleteBtn.addEventListener('click', confirmDelete);
 
@@ -1913,3 +1949,4 @@ init().catch((err) => {
   console.error(err);
   alert(t('form.initFailed', 'Initialization failed.'));
 });
+

@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mind MemoSpace</title>
+  <script>window.__APP_VERSION__ = "20260312.1";</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css?v=20260312.1" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+</head>
+<body data-page-type="mind" data-page-scope="public" data-page-mode="readonly">
+  <div class="app-shell">
+    <aside class="detail-panel" id="detailPanel" aria-hidden="true">
+      <div class="detail-inner" id="detailInner">
+        <div class="detail-placeholder" id="detailPlaceholder">Select a card to view details.</div>
+      </div>
+      <button class="panel-close mobile-only" id="panelCloseBtn" type="button">&#9776;</button>
+    </aside>
+
+    <main class="content-shell" id="contentShell">
+      <header class="topbar">
+        <div class="page-title-wrap">
+          <img
+            class="site-logo"
+            src="/static/img/Icon.svg"
+            alt="Logo"
+            loading="lazy"
+            onerror="this.style.display='none'"
+          />
+          <h1 class="page-title" id="pageTitle">Mind MemoSpace</h1>
+        </div>
+        <div class="toolbar" id="toolbar">
+          <label class="search-box">
+            <input type="text" id="searchInput" placeholder="Search" />
+            <span class="search-icon">&#128269;</span>
+          </label>
+          <button class="primary-btn" id="addBtn" type="button">Add</button>
+        </div>
+      </header>
+
+      <section class="grid-shell">
+        <div class="memory-grid mind-grid" id="memoryGrid"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="formModalOverlay" aria-hidden="true">
+    <div class="modal-card form-modal">
+      <div class="modal-header">
+        <h2 id="formModalTitle">Add</h2>
+        <button class="icon-btn" type="button" data-close-form>&times;</button>
+      </div>
+      <form id="memoryForm" class="memory-form"></form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="deleteModalOverlay" aria-hidden="true">
+    <div class="modal-card confirm-modal">
+      <div class="modal-header">
+        <h2 id="deleteModalTitle">Confirm Delete</h2>
+        <button class="icon-btn" type="button" data-close-delete>&times;</button>
+      </div>
+      <p class="confirm-text" id="deleteModalText">Deletion is irreversible. Continue?</p>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-close-delete id="deleteCancelBtn">Cancel</button>
+        <button class="danger-btn" type="button" id="confirmDeleteBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js?v=20260312.1"></script>
+</body>
+</html>
+
+
