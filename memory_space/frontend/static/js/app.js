@@ -1474,25 +1474,119 @@ async function openSettingsModal() {
 async function logoutAccount() {
   const response = await fetch('/api/auth/logout', { method: 'POST' });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Logout failed.');
+    throw new Error(t('settings.account.logoutFailed', 'Logout failed.'));
   }
   window.location.href = '/auth/login';
 }
 
-async function unregisterAccount() {
-  const confirmPassword = window.prompt(t('account.confirmPassword', 'Please enter your password to confirm account deletion.'));
-  if (!confirmPassword) return;
+async function resolveAccountApiError(response, fallbackMessage) {
+  let detail = '';
+  try {
+    const payload = await response.json();
+    detail = typeof payload?.detail === 'string' ? payload.detail : '';
+  } catch {}
+
+  if (detail === 'Password confirmation failed.') {
+    return t('settings.account.passwordConfirmFailed', 'Password confirmation failed.');
+  }
+  if (detail === 'Authentication required.') {
+    return t('settings.account.authRequired', 'Authentication required.');
+  }
+  return detail || fallbackMessage;
+}
+
+async function unregisterAccount(confirmPassword) {
+  const normalized = (confirmPassword || '').toString();
+  if (!normalized.trim()) {
+    throw new Error(t('settings.account.passwordRequired', 'Password is required.'));
+  }
   const response = await fetch('/api/auth/unregister', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ confirm_password: confirmPassword }),
+    body: JSON.stringify({ confirm_password: normalized }),
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Account deletion failed.');
+    const msg = await resolveAccountApiError(
+      response,
+      t('settings.account.unregisterFailed', 'Account deletion failed.')
+    );
+    throw new Error(msg);
   }
   window.location.href = '/auth/register';
+}
+
+function closeUnregisterModal() {
+  const overlay = document.getElementById('unregisterModalOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function openUnregisterModal() {
+  let overlay = document.getElementById('unregisterModalOverlay');
+  if (overlay) {
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    overlay.querySelector('#unregisterPasswordInput')?.focus();
+    return;
+  }
+
+  overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'unregisterModalOverlay';
+  overlay.setAttribute('aria-hidden', 'false');
+  overlay.innerHTML = `
+    <div class="modal-card confirm-modal">
+      <div class="modal-header">
+        <div class="page-title-wrap">
+          <img class="site-logo" src="/static/img/Icon.svg" alt="Logo" loading="lazy" onerror="this.style.display='none'" />
+          <h2>${escapeHtml(t('settings.account.unregisterConfirmTitle', 'Are you sure you want to unregister?'))}</h2>
+        </div>
+        <button class="icon-btn" type="button" id="closeUnregisterModalBtn" aria-label="${escapeHtml(t('common.close', 'Close'))}">&times;</button>
+      </div>
+      <p class="confirm-text">${escapeHtml(t('settings.account.unregisterConfirmDesc', 'Please enter your password to verify.'))}</p>
+      <div class="memory-form" style="grid-template-columns:1fr;padding-top:10px;">
+        <div class="field full" style="margin:0;">
+          <label for="unregisterPasswordInput">${escapeHtml(t('settings.account.passwordLabel', 'Password'))}</label>
+          <input id="unregisterPasswordInput" type="password" placeholder="${escapeHtml(t('settings.account.passwordPlaceholder', 'Enter your password'))}" autocomplete="current-password" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" id="cancelUnregisterModalBtn">${escapeHtml(t('common.cancel', 'Cancel'))}</button>
+        <button class="danger-btn" type="button" id="confirmUnregisterModalBtn">${escapeHtml(t('settings.account.confirmBtn', 'Confirm'))}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const closeBtn = overlay.querySelector('#closeUnregisterModalBtn');
+  const cancelBtn = overlay.querySelector('#cancelUnregisterModalBtn');
+  const confirmBtn = overlay.querySelector('#confirmUnregisterModalBtn');
+  const passwordInput = overlay.querySelector('#unregisterPasswordInput');
+
+  const submitUnregister = async () => {
+    try {
+      await unregisterAccount(passwordInput?.value || '');
+    } catch (error) {
+      alert(error.message || t('settings.account.unregisterFailed', 'Account deletion failed.'));
+    }
+  };
+
+  closeBtn?.addEventListener('click', closeUnregisterModal);
+  cancelBtn?.addEventListener('click', closeUnregisterModal);
+  confirmBtn?.addEventListener('click', submitUnregister);
+  passwordInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void submitUnregister();
+    }
+  });
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeUnregisterModal();
+    }
+  });
+  passwordInput?.focus();
 }
 
 function renderThemePresetGroup(mode, groupKey, titleKey, fallbackTitle) {
@@ -1686,7 +1780,7 @@ function renderSettingsModal(options = {}) {
   });
   overlay.querySelector('#unregisterAccountBtn')?.addEventListener('click', async () => {
     try {
-      await unregisterAccount();
+      openUnregisterModal();
     } catch (error) {
       alert(error.message || t('settings.account.unregisterFailed', 'Account deletion failed.'));
     }
@@ -1981,6 +2075,7 @@ window.addEventListener('keydown', (event) => {
     closeFormModal();
     closeDeleteModal();
     closeSettingsModal();
+    closeUnregisterModal();
     closeDetail();
   }
 });

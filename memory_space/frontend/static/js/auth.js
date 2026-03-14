@@ -90,6 +90,26 @@ function setError(message = '') {
   if (errorEl) errorEl.textContent = message;
 }
 
+async function resolveAuthApiError(response, fallbackMessage) {
+  let detail = '';
+  try {
+    const payload = await response.json();
+    detail = typeof payload?.detail === 'string' ? payload.detail : '';
+  } catch {}
+
+  if (detail === 'Invalid username or password.') {
+    return t('auth.error.invalidCredentials', 'Invalid username or password.');
+  }
+  if (detail === 'Account already exists.') {
+    return t('auth.error.accountExists', 'Account already exists.');
+  }
+  if (detail === 'No account exists. Please register first.') {
+    return t('auth.error.noAccount', 'No account exists. Please register first.');
+  }
+
+  return detail || fallbackMessage;
+}
+
 function stripQuotes(value) {
   return (value || '').toString().trim().replace(/^["']|["']$/g, '');
 }
@@ -576,8 +596,8 @@ async function submitLogin(username, password) {
     body: JSON.stringify({ username, password }),
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Login failed.');
+    const msg = await resolveAuthApiError(response, t('auth.error.loginFailed', 'Login failed.'));
+    throw new Error(msg);
   }
 }
 
@@ -588,8 +608,8 @@ async function submitRegister(username, password) {
     body: JSON.stringify({ username, password }),
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Register failed.');
+    const msg = await resolveAuthApiError(response, t('auth.error.registerFailed', 'Register failed.'));
+    throw new Error(msg);
   }
 }
 

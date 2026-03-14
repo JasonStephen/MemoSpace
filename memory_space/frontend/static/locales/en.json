@@ -122,5 +122,18 @@
   "auth.error.passwordMismatch": "Passwords do not match.",
   "auth.error.requestFailed": "Request failed.",
   "auth.error.initFailed": "Initialization failed.",
-  "auth.settings.themeCurrent": "Current theme"
+  "auth.settings.themeCurrent": "Current theme",
+  "settings.account.unregisterConfirmTitle": "Are you sure you want to unregister?",
+  "settings.account.unregisterConfirmDesc": "Please enter your password to verify.",
+  "settings.account.passwordLabel": "Password",
+  "settings.account.passwordPlaceholder": "Enter your password",
+  "settings.account.confirmBtn": "Confirm",
+  "settings.account.passwordRequired": "Password is required.",
+  "auth.error.invalidCredentials": "Invalid username or password.",
+  "auth.error.accountExists": "Account already exists.",
+  "auth.error.noAccount": "No account exists. Please register first.",
+  "auth.error.loginFailed": "Login failed.",
+  "auth.error.registerFailed": "Register failed.",
+  "settings.account.passwordConfirmFailed": "Password confirmation failed.",
+  "settings.account.authRequired": "Authentication required."
 }
