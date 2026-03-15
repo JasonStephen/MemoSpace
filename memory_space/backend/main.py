@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import atexit
 import mimetypes
@@ -94,6 +94,10 @@ async def disable_cache_for_pages_and_static(request, call_next):
         '/',
         '/music',
         '/mind',
+        '/music/public',
+        '/mind/public',
+        '/music/personal',
+        '/mind/personal',
         '/public/music',
         '/public/mind',
         '/personal/music',
@@ -156,17 +160,17 @@ def mind_page_legacy(request: Request):
     return render_page('personal/mind.html')
 
 
-@app.get('/public/music')
+@app.get('/music/public')
 def public_music_page() -> HTMLResponse:
     return render_page('public/music.html')
 
 
-@app.get('/public/mind')
+@app.get('/mind/public')
 def public_mind_page() -> HTMLResponse:
     return render_page('public/mind.html')
 
 
-@app.get('/personal/music')
+@app.get('/music/personal')
 def personal_music_page(request: Request):
     redirect = ensure_personal_access(request)
     if redirect:
@@ -174,7 +178,7 @@ def personal_music_page(request: Request):
     return render_page('personal/music.html')
 
 
-@app.get('/personal/mind')
+@app.get('/mind/personal')
 def personal_mind_page(request: Request):
     redirect = ensure_personal_access(request)
     if redirect:
@@ -182,10 +186,30 @@ def personal_mind_page(request: Request):
     return render_page('personal/mind.html')
 
 
+
+@app.get('/public/music')
+def public_music_page_legacy() -> RedirectResponse:
+    return RedirectResponse(url='/music/public', status_code=302)
+
+
+@app.get('/public/mind')
+def public_mind_page_legacy() -> RedirectResponse:
+    return RedirectResponse(url='/mind/public', status_code=302)
+
+
+@app.get('/personal/music')
+def personal_music_page_legacy() -> RedirectResponse:
+    return RedirectResponse(url='/music/personal', status_code=302)
+
+
+@app.get('/personal/mind')
+def personal_mind_page_legacy() -> RedirectResponse:
+    return RedirectResponse(url='/mind/personal', status_code=302)
+
 @app.get('/auth/login')
 def login_page(request: Request):
     if get_current_user_from_request(request):
-        return RedirectResponse(url='/personal/music', status_code=302)
+        return RedirectResponse(url='/music/personal', status_code=302)
     if not has_registered_account():
         return RedirectResponse(url='/auth/register', status_code=302)
     return render_page('auth/login.html')
@@ -194,7 +218,7 @@ def login_page(request: Request):
 @app.get('/auth/register')
 def register_page(request: Request):
     if get_current_user_from_request(request):
-        return RedirectResponse(url='/personal/music', status_code=302)
+        return RedirectResponse(url='/music/personal', status_code=302)
     if has_registered_account():
         return RedirectResponse(url='/auth/login', status_code=302)
     return render_page('auth/register.html')

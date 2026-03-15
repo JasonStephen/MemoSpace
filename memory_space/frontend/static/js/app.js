@@ -1,11 +1,11 @@
-﻿const pageType = document.body.dataset.pageType;
+const pageType = document.body.dataset.pageType;
 const pageScope = document.body.dataset.pageScope === 'public' ? 'public' : 'personal';
 const pageMode = document.body.dataset.pageMode === 'readonly' ? 'readonly' : 'editable';
-const publicApiBase = `/api/public/${pageType}`;
-const personalApiBase = `/api/personal/${pageType}`;
+const publicApiBase = `/api/${pageType}/public`;
+const personalApiBase = `/api/${pageType}/personal`;
 const readApiBase = pageScope === 'public' ? publicApiBase : personalApiBase;
 const writeApiBase = personalApiBase;
-const routeBase = pageScope === 'public' ? '/public' : '/personal';
+const routeScope = pageScope;
 const fallbackDefaultLocale = 'zh-Hans';
 const fallbackAppFontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 const localeStorageKey = 'memory_space_locale';
@@ -1843,7 +1843,7 @@ function renderToolbarControls() {
     ? t('common.switchToMind', 'Go Mind')
     : t('common.switchToMusic', 'Go Music');
   switchBtn.addEventListener('click', () => {
-    window.location.href = pageType === 'music' ? `${routeBase}/mind` : `${routeBase}/music`;
+    window.location.href = pageType === 'music' ? `/mind/${routeScope}` : `/music/${routeScope}`;
   });
   toolbar.appendChild(switchBtn);
 
@@ -2096,4 +2096,3 @@ init().catch((err) => {
   console.error(err);
   alert(t('form.initFailed', 'Initialization failed.'));
 });
-

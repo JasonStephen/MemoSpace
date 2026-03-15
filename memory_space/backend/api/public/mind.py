@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from db import fetch_all
 
-router = APIRouter(prefix='/api/public/mind', tags=['public-mind'])
+router = APIRouter(prefix='/api/mind/public', tags=['public-mind'])
 
 
 @router.get('')

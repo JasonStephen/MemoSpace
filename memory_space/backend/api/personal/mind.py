@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 
@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from db import execute, fetch_all, fetch_one
 from schemas import HiddenStatusIn, MindMemoryIn
 
-router = APIRouter(prefix='/api/personal/mind', tags=['personal-mind'])
+router = APIRouter(prefix='/api/mind/personal', tags=['personal-mind'])
 
 
 def _build_filter_clause(include_hidden: bool, hidden_only: bool) -> str:

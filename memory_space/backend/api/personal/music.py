@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from urllib.parse import urlparse
@@ -9,7 +9,7 @@ from config import LINK_OPTIONS
 from db import execute, fetch_all, fetch_one
 from schemas import HiddenStatusIn, MusicMemoryIn
 
-router = APIRouter(prefix='/api/personal/music', tags=['personal-music'])
+router = APIRouter(prefix='/api/music/personal', tags=['personal-music'])
 
 LINK_OPTION_MAP: dict[str, dict[str, object]] = {str(item['provider']): item for item in LINK_OPTIONS}
 PROVIDER_ALIASES: dict[str, str] = {}

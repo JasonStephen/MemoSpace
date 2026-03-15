@@ -1,4 +1,4 @@
-﻿const authMode = document.body.dataset.authMode;
+const authMode = document.body.dataset.authMode;
 const form = document.getElementById('authForm');
 const errorEl = document.getElementById('authError');
 const settingsToggleBtn = document.getElementById('authSettingsToggleBtn');
@@ -577,7 +577,7 @@ async function fetchStatus() {
 async function initAuthPage() {
   const status = await fetchStatus();
   if (status.authenticated) {
-    window.location.href = '/personal/music';
+    window.location.href = '/music/personal';
     return;
   }
   if (authMode === 'login' && !status.has_account) {
@@ -637,7 +637,7 @@ form?.addEventListener('submit', async (event) => {
     } else {
       await submitLogin(username, password);
     }
-    window.location.href = '/personal/music';
+    window.location.href = '/music/personal';
   } catch (error) {
     setError(error.message || t('auth.error.requestFailed', 'Request failed.'));
   }
