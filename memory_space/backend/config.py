@@ -298,7 +298,7 @@ LINK_OPTIONS: list[dict[str, object]] = [
     {
         'provider': 'netease_music',
         'label': 'NetEase Music',
-        'domains': ['music.163.com'],
+        'domains': ['music.163.com', '163cn.tv'],
         'icon': 'https://cdn.simpleicons.org/neteasecloudmusic/D43C33',
     },
     {

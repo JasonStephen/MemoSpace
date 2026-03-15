@@ -120,6 +120,7 @@ const state = {
   hiddenSpace: false,
   coverCandidatesCache: new Map(),
   coverResolvePromiseCache: new Map(),
+  neteaseResolveCache: new Map(),
 };
 let currentMarkdownEditor = null;
 let statusPollTimer = null;
@@ -800,7 +801,7 @@ function renderCards() {
       event.stopPropagation();
       if (provider !== 'netease_music') return;
       event.preventDefault();
-      tryOpenNeteaseApp(rawUrl);
+      void tryOpenNeteaseApp(rawUrl);
     });
   });
 
@@ -914,8 +915,32 @@ function buildNeteaseAppUrl(webUrl) {
   return `orpheus://${content.type}/${content.id}`;
 }
 
-function tryOpenNeteaseApp(linkUrl) {
-  const appUrl = buildNeteaseAppUrl(linkUrl);
+async function resolveNeteaseAppUrl(linkUrl) {
+  const raw = (linkUrl || '').toString().trim();
+  if (!raw) return 'orpheus://';
+  if (state.neteaseResolveCache.has(raw)) {
+    return state.neteaseResolveCache.get(raw) || 'orpheus://';
+  }
+  try {
+    const response = await fetch('/api/music/public/netease/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: raw }),
+    });
+    if (response.ok) {
+      const payload = await response.json();
+      const appUrl = (payload?.app_url || '').toString().trim() || buildNeteaseAppUrl(raw);
+      state.neteaseResolveCache.set(raw, appUrl);
+      return appUrl;
+    }
+  } catch {}
+  const fallback = buildNeteaseAppUrl(raw);
+  state.neteaseResolveCache.set(raw, fallback);
+  return fallback;
+}
+
+async function tryOpenNeteaseApp(linkUrl) {
+  const appUrl = await resolveNeteaseAppUrl(linkUrl);
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 
   if (isMobile) {
@@ -941,7 +966,7 @@ function bindExternalLinkHandlers() {
     if (provider !== 'netease_music') return;
     anchor.addEventListener('click', (event) => {
       event.preventDefault();
-      tryOpenNeteaseApp(rawUrl);
+      void tryOpenNeteaseApp(rawUrl);
       if (launchHint && fallbackAnchor) {
         fallbackAnchor.setAttribute('href', rawUrl);
         launchHint.hidden = false;

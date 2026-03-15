@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 
 from fastapi import APIRouter, Body, Query
 
 from db import fetch_all
-from music_cover import resolve_cover_candidates
+from music_cover import resolve_cover_candidates, resolve_netease_link
 
 router = APIRouter(prefix='/api/music/public', tags=['public-music'])
 
@@ -71,3 +71,10 @@ def resolve_music_cover(payload: dict | None = Body(default=None)) -> dict[str, 
         'primary': candidates[0] if candidates else '',
         'candidates': candidates,
     }
+
+@router.post('/netease/resolve')
+def resolve_netease_short_link(payload: dict | None = Body(default=None)) -> dict[str, str]:
+    body = payload or {}
+    raw_url = str(body.get('url', '')).strip()
+    return resolve_netease_link(raw_url)
+

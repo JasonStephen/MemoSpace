@@ -6,7 +6,7 @@ import re
 from functools import lru_cache
 from typing import Iterable
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
 USER_AGENT = (
@@ -23,6 +23,15 @@ def _http_get_text(url: str) -> str:
         with urlopen(req, timeout=HTTP_TIMEOUT_SECONDS) as resp:
             charset = resp.headers.get_content_charset() or 'utf-8'
             return resp.read().decode(charset, errors='ignore')
+    except (HTTPError, URLError, TimeoutError, ValueError):
+        return ''
+
+
+def _resolve_final_url(url: str) -> str:
+    req = Request(url=url, headers={'User-Agent': USER_AGENT})
+    try:
+        with urlopen(req, timeout=HTTP_TIMEOUT_SECONDS) as resp:
+            return str(resp.geturl() or '').strip()
     except (HTTPError, URLError, TimeoutError, ValueError):
         return ''
 
@@ -60,7 +69,14 @@ def _normalize_netease_song_url(raw_url: str) -> str:
     parsed = urlparse(text)
     netloc = (parsed.netloc or '').lower()
     if 'music.163.com' not in netloc:
-        return text
+        if netloc == '163cn.tv' or netloc.endswith('.163cn.tv'):
+            redirected = _resolve_final_url(text)
+            if redirected:
+                text = redirected.strip()
+                parsed = urlparse(text)
+                netloc = (parsed.netloc or '').lower()
+        if 'music.163.com' not in netloc:
+            return text
 
     path = parsed.path or '/song'
     query = parsed.query
@@ -83,6 +99,39 @@ def _normalize_netease_song_url(raw_url: str) -> str:
     if query:
         return f'https://music.163.com{path}?{query}'
     return f'https://music.163.com{path}'
+
+
+def parse_netease_content(raw_url: str) -> dict[str, str] | None:
+    normalized = _normalize_netease_song_url(raw_url)
+    if not normalized:
+        return None
+
+    try:
+        url = urlparse(normalized)
+        path = (url.path or '').strip('/')
+        content_type = path.split('/')[0] if path else ''
+        if content_type not in {'song', 'playlist', 'album'}:
+            content_type = 'song'
+
+        content_id = ''
+        if url.query:
+            query_map = parse_qs(url.query)
+            content_id = str((query_map.get('id') or [''])[0]).strip()
+        if not content_id:
+            return None
+        return {'type': content_type, 'id': content_id, 'url': normalized}
+    except ValueError:
+        return None
+
+
+def resolve_netease_link(raw_url: str) -> dict[str, str]:
+    parsed = parse_netease_content(raw_url)
+    if not parsed:
+        return {'canonical_url': '', 'app_url': 'orpheus://'}
+    return {
+        'canonical_url': parsed['url'],
+        'app_url': f"orpheus://{parsed['type']}/{parsed['id']}",
+    }
 
 
 @lru_cache(maxsize=512)
