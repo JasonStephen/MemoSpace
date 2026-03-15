@@ -120,6 +120,8 @@ const state = {
   hiddenSpace: false,
   coverCandidatesCache: new Map(),
   coverResolvePromiseCache: new Map(),
+  metadataResolveCache: new Map(),
+  metadataResolvePromiseCache: new Map(),
   neteaseResolveCache: new Map(),
 };
 let currentMarkdownEditor = null;
@@ -553,6 +555,48 @@ async function resolveMusicCoverCandidates(links, preferredIconUrl = '') {
   })();
 
   state.coverResolvePromiseCache.set(cacheKey, pending);
+  return pending;
+}
+
+async function resolveMusicMetadataFromLinks(links) {
+  const normalizedLinks = normaliseLinks(links);
+  if (!normalizedLinks.length) {
+    return { title: '', artist: '' };
+  }
+
+  const cacheKey = coverLinksCacheKey(normalizedLinks);
+  if (state.metadataResolveCache.has(cacheKey)) {
+    return state.metadataResolveCache.get(cacheKey);
+  }
+  if (state.metadataResolvePromiseCache.has(cacheKey)) {
+    return state.metadataResolvePromiseCache.get(cacheKey);
+  }
+
+  const pending = (async () => {
+    try {
+      const response = await fetch('/api/music/public/metadata/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ links: normalizedLinks }),
+      });
+      if (!response.ok) {
+        return { title: '', artist: '' };
+      }
+      const payload = await response.json();
+      const data = {
+        title: (payload?.title || '').toString().trim(),
+        artist: (payload?.artist || '').toString().trim(),
+      };
+      state.metadataResolveCache.set(cacheKey, data);
+      return data;
+    } catch {
+      return { title: '', artist: '' };
+    } finally {
+      state.metadataResolvePromiseCache.delete(cacheKey);
+    }
+  })();
+
+  state.metadataResolvePromiseCache.set(cacheKey, pending);
   return pending;
 }
 
@@ -1104,6 +1148,8 @@ function getFormHtml(item = null) {
   const linkRows = initialLinks.length
     ? initialLinks.map(link => buildLinkRowHtml(link)).join('')
     : buildLinkRowHtml();
+  const autoInfoText = escapeHtml(t('form.iconUrlInfo', 'Currently only Netease Music and Spotify support auto retrieval.'));
+  const autoInfoBadge = `<span class="field-info" title="${autoInfoText}" aria-label="${autoInfoText}">i</span>`;
 
   const musicExtra = pageType === 'music' ? `
     <div class="field">
@@ -1118,7 +1164,7 @@ function getFormHtml(item = null) {
       <input id="icon_url" name="icon_url" type="text" value="${escapeHtml(data.icon_url || '')}" />
     </div>
     <div class="field">
-      <label for="artist">${escapeHtml(t('form.artist', 'Artist'))}</label>
+      <label for="artist">${escapeHtml(t('form.artist', 'Artist'))}${autoInfoBadge}</label>
       <input id="artist" name="artist" type="text" value="${escapeHtml(data.artist || '')}" />
     </div>
     <div class="field full">
@@ -1133,7 +1179,7 @@ function getFormHtml(item = null) {
 
   return `
     <div class="field">
-      <label for="title">${escapeHtml(t('form.title', 'Title'))}</label>
+      <label for="title">${escapeHtml(t('form.title', 'Title'))}${pageType === 'music' ? autoInfoBadge : ''}</label>
       <input id="title" name="title" type="text" value="${escapeHtml(data.title || '')}" />
     </div>
     ${musicExtra}
@@ -1247,13 +1293,35 @@ function setupLinkEditor() {
   if (pageType !== 'music') return;
   const editorRows = memoryForm.querySelector('#linkEditorRows');
   const addLinkBtn = memoryForm.querySelector('#addLinkBtn');
-  if (!editorRows || !addLinkBtn) return;
+  const titleInput = memoryForm.querySelector('#title');
+  const artistInput = memoryForm.querySelector('#artist');
+  if (!editorRows || !addLinkBtn || !titleInput || !artistInput) return;
+
+  let metadataFillTimer = null;
+
+  const tryAutoFillMetadata = () => {
+    if (metadataFillTimer) {
+      window.clearTimeout(metadataFillTimer);
+    }
+    metadataFillTimer = window.setTimeout(async () => {
+      const links = collectFormLinks();
+      if (!links.length) return;
+      const metadata = await resolveMusicMetadataFromLinks(links);
+      if (metadata.title && !titleInput.value.trim()) {
+        titleInput.value = metadata.title;
+      }
+      if (metadata.artist && !artistInput.value.trim()) {
+        artistInput.value = metadata.artist;
+      }
+    }, 360);
+  };
 
   const bindRemoveEvents = () => {
     editorRows.querySelectorAll('[data-remove-link]').forEach(button => {
       button.onclick = () => {
         const row = button.closest('.link-row');
         if (row) row.remove();
+        tryAutoFillMetadata();
       };
     });
   };
@@ -1262,7 +1330,12 @@ function setupLinkEditor() {
   addLinkBtn.addEventListener('click', () => {
     editorRows.insertAdjacentHTML('beforeend', buildLinkRowHtml());
     bindRemoveEvents();
+    tryAutoFillMetadata();
   });
+
+  editorRows.addEventListener('input', tryAutoFillMetadata);
+  editorRows.addEventListener('change', tryAutoFillMetadata);
+  tryAutoFillMetadata();
 }
 
 function setupColorEditor() {
