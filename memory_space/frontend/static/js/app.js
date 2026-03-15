@@ -1,4 +1,4 @@
-const pageType = document.body.dataset.pageType;
+﻿const pageType = document.body.dataset.pageType;
 const pageScope = document.body.dataset.pageScope === 'public' ? 'public' : 'personal';
 const pageMode = document.body.dataset.pageMode === 'readonly' ? 'readonly' : 'editable';
 const publicApiBase = `/api/${pageType}/public`;
@@ -118,6 +118,8 @@ const state = {
     serviceHealthy: null,
   },
   hiddenSpace: false,
+  coverCandidatesCache: new Map(),
+  coverResolvePromiseCache: new Map(),
 };
 let currentMarkdownEditor = null;
 let statusPollTimer = null;
@@ -379,18 +381,18 @@ function updateSystemStatusUI() {
   if (!versionText || !versionDot || !healthText || !healthDot) return;
 
   const latestVersion = state.systemStatus.latestVersion || appVersion;
-  const versionLabel = t('status.version', '版本');
-  const healthLabel = t('status.health', '服务状态');
+  const versionLabel = t('status.version', '');
+  const healthLabel = t('status.health', '');
   const versionStateText = state.systemStatus.versionMatched === null
-    ? t('status.checking', '检测中')
+    ? t('status.checking', '')
     : (state.systemStatus.versionMatched
-      ? t('status.synced', '一致')
-      : t('status.outdated', '需刷新'));
+      ? t('status.synced', '')
+      : t('status.outdated', ''));
   const healthStateText = state.systemStatus.serviceHealthy === null
-    ? t('status.checking', '检测中')
+    ? t('status.checking', '')
     : (state.systemStatus.serviceHealthy
-      ? t('status.normal', '正常')
-      : t('status.abnormal', '异常'));
+      ? t('status.normal', '')
+      : t('status.abnormal', ''));
 
   versionText.textContent = `${versionLabel} ${latestVersion} · ${versionStateText}`;
   healthText.textContent = `${healthLabel} ${healthStateText}`;
@@ -494,6 +496,148 @@ function normaliseLinks(raw) {
   return [];
 }
 
+function dedupeCoverUrls(values) {
+  const seen = new Set();
+  const result = [];
+  (values || []).forEach((value) => {
+    const text = (value || '').toString().trim();
+    if (!text || seen.has(text)) return;
+    seen.add(text);
+    result.push(text);
+  });
+  return result;
+}
+
+function coverLinksCacheKey(links) {
+  return JSON.stringify(normaliseLinks(links || []));
+}
+
+async function resolveMusicCoverCandidates(links, preferredIconUrl = '') {
+  const normalizedLinks = normaliseLinks(links);
+  if (!normalizedLinks.length) {
+    return dedupeCoverUrls([preferredIconUrl]);
+  }
+
+  const cacheKey = `${coverLinksCacheKey(normalizedLinks)}|${(preferredIconUrl || '').trim()}`;
+  if (state.coverCandidatesCache.has(cacheKey)) {
+    return state.coverCandidatesCache.get(cacheKey);
+  }
+  if (state.coverResolvePromiseCache.has(cacheKey)) {
+    return state.coverResolvePromiseCache.get(cacheKey);
+  }
+
+  const pending = (async () => {
+    try {
+      const response = await fetch('/api/music/public/cover/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          links: normalizedLinks,
+          preferred_icon_url: (preferredIconUrl || '').toString().trim(),
+        }),
+      });
+      if (!response.ok) {
+        return dedupeCoverUrls([preferredIconUrl]);
+      }
+      const payload = await response.json();
+      const candidates = dedupeCoverUrls(payload?.candidates || []);
+      const finalCandidates = candidates.length ? candidates : dedupeCoverUrls([preferredIconUrl]);
+      state.coverCandidatesCache.set(cacheKey, finalCandidates);
+      return finalCandidates;
+    } catch {
+      return dedupeCoverUrls([preferredIconUrl]);
+    } finally {
+      state.coverResolvePromiseCache.delete(cacheKey);
+    }
+  })();
+
+  state.coverResolvePromiseCache.set(cacheKey, pending);
+  return pending;
+}
+
+function tryApplyNextCover(imgEl, candidates) {
+  if (!imgEl) return false;
+  const currentSrc = (imgEl.getAttribute('src') || '').trim();
+  const urls = dedupeCoverUrls(candidates);
+  if (!urls.length) return false;
+
+  const currentIndex = Number(imgEl.dataset.coverCandidateIndex || '-1');
+  const computedStart = currentIndex >= 0
+    ? currentIndex + 1
+    : Math.max(urls.findIndex(url => url === currentSrc) + 1, 0);
+
+  for (let idx = computedStart; idx < urls.length; idx += 1) {
+    const candidate = urls[idx];
+    if (!candidate || candidate === currentSrc) continue;
+    imgEl.dataset.coverCandidateIndex = String(idx);
+    imgEl.src = candidate;
+    return true;
+  }
+
+  return false;
+}
+
+function bindCoverFallback(imgEl, item, options = {}) {
+  if (!imgEl || !item || imgEl.dataset.coverFallbackBound === '1') return;
+  imgEl.dataset.coverFallbackBound = '1';
+  imgEl.dataset.coverCandidateIndex = '-1';
+
+  const hideOnFail = !!options.hideOnFail;
+  const replaceWithEmpty = !!options.replaceWithEmpty;
+
+  imgEl.addEventListener('error', () => {
+    void (async () => {
+      const candidates = await resolveMusicCoverCandidates(item.links, item.icon_url || '');
+      if (tryApplyNextCover(imgEl, candidates)) return;
+
+      if (hideOnFail) {
+        imgEl.style.display = 'none';
+        return;
+      }
+      if (replaceWithEmpty) {
+        imgEl.outerHTML = `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`;
+      }
+    })();
+  });
+
+  const currentSrc = (imgEl.getAttribute('src') || '').trim();
+  if (!currentSrc) {
+    void (async () => {
+      const candidates = await resolveMusicCoverCandidates(item.links, item.icon_url || '');
+      if (!candidates.length) {
+        if (hideOnFail) {
+          imgEl.style.display = 'none';
+          return;
+        }
+        if (replaceWithEmpty) {
+          imgEl.outerHTML = `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`;
+        }
+        return;
+      }
+      imgEl.dataset.coverCandidateIndex = '0';
+      imgEl.style.display = '';
+      imgEl.src = candidates[0];
+    })();
+  }
+}
+
+function bindCardCoverFallbacks() {
+  if (pageType !== 'music') return;
+  memoryGrid.querySelectorAll('.card-avatar-img[data-item-id]').forEach((imgEl) => {
+    const itemId = Number(imgEl.getAttribute('data-item-id') || '0');
+    const item = state.items.find(entry => entry.id === itemId);
+    if (!item) return;
+    bindCoverFallback(imgEl, item, { hideOnFail: true });
+  });
+}
+
+function bindDetailCoverFallback(item) {
+  if (pageType !== 'music') return;
+  const imgEl = detailInner.querySelector('.detail-avatar[data-item-id]');
+  if (!imgEl) return;
+  bindCoverFallback(imgEl, item, { replaceWithEmpty: true });
+}
+
 function getLinkOption(provider) {
   return state.linkOptions.find(item => item.provider === provider);
 }
@@ -589,10 +733,15 @@ function renderCards() {
     const avatar = pageType === 'music'
       ? `
         <div class="card-avatar-wrap">
-          <div class="card-avatar card-avatar-fallback">♪</div>
-          ${item.icon_url?.trim()
-            ? `<img class="card-avatar card-avatar-img" src="${escapeHtml(item.icon_url)}" alt="cover" loading="lazy" onerror="this.style.display='none'" />`
-            : ''}
+          <div class="card-avatar card-avatar-fallback">&#9835;</div>
+          <img
+            class="card-avatar card-avatar-img"
+            data-item-id="${item.id}"
+            src="${escapeHtml(item.icon_url || '')}"
+            alt="cover"
+            loading="lazy"
+            ${item.icon_url?.trim() ? '' : 'style="display:none"'}
+          />
         </div>
       `
       : '';
@@ -654,6 +803,8 @@ function renderCards() {
       tryOpenNeteaseApp(rawUrl);
     });
   });
+
+  bindCardCoverFallbacks();
 }
 
 function renderTagList(tags) {
@@ -801,9 +952,7 @@ function bindExternalLinkHandlers() {
 
 function openDetail(item) {
   const avatarHtml = pageType === 'music'
-    ? (item.icon_url?.trim()
-      ? `<img class="detail-avatar" src="${escapeHtml(item.icon_url)}" alt="avatar" onerror="this.outerHTML='<div class=&quot;detail-avatar&quot;>${escapeHtml(t('common.empty', 'Empty'))}</div>'" />`
-      : `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`)
+    ? `<img class="detail-avatar" data-item-id="${item.id}" src="${escapeHtml(item.icon_url || '')}" alt="avatar" ${item.icon_url?.trim() ? '' : 'style="display:none"'} />`
     : '';
   const shortDesc = textOrEmpty(item.short_desc);
   const longDesc = textOrEmpty(item.long_desc);
@@ -839,6 +988,7 @@ function openDetail(item) {
   detailHiddenBtn?.addEventListener('click', async () => {
     await updateHiddenStatus(item.id, !item.hidden);
   });
+  bindDetailCoverFallback(item);
   bindExternalLinkHandlers();
 
   document.body.classList.add('panel-open');
@@ -932,7 +1082,14 @@ function getFormHtml(item = null) {
 
   const musicExtra = pageType === 'music' ? `
     <div class="field">
-      <label for="icon_url">${escapeHtml(t('form.iconUrl', 'Cover URL'))}</label>
+      <label for="icon_url">
+        ${escapeHtml(t('form.iconUrl', 'Cover URL'))}
+        <span
+          class="field-info"
+          title="${escapeHtml(t('form.iconUrlInfo', 'Currently only Netease Music and Spotify support auto cover retrieval.'))}"
+          aria-label="${escapeHtml(t('form.iconUrlInfo', 'Currently only Netease Music and Spotify support auto cover retrieval.'))}"
+        >i</span>
+      </label>
       <input id="icon_url" name="icon_url" type="text" value="${escapeHtml(data.icon_url || '')}" />
     </div>
     <div class="field">
@@ -1669,13 +1826,13 @@ function renderSettingsModal(options = {}) {
             <h3>${escapeHtml(t('settings.section.theme', 'Theme Mode'))}</h3>
             <div class="theme-wrap settings-theme-wrap">
               <button class="icon-btn theme-option" type="button" data-theme-mode="light" title="${escapeHtml(t('theme.light', 'Light Mode'))}" aria-label="${escapeHtml(t('theme.light', 'Light Mode'))}">
-                ☀
+                &#9728;
               </button>
               <button class="icon-btn theme-option" type="button" data-theme-mode="dark" title="${escapeHtml(t('theme.dark', 'Dark Mode'))}" aria-label="${escapeHtml(t('theme.dark', 'Dark Mode'))}">
-                ☾
+                &#9790;
               </button>
               <button class="icon-btn theme-option" type="button" data-theme-mode="system" title="${escapeHtml(t('theme.system', 'System'))}" aria-label="${escapeHtml(t('theme.system', 'System'))}">
-                ◐
+                &#9680;
               </button>
             </div>
             <p class="settings-theme-mode-hint" id="settingsThemeModeHint">${escapeHtml(t('settings.theme.currentMode', 'Current mode preset list'))}: ${escapeHtml(t(`theme.${resolvedMode}`, resolvedMode))}</p>
@@ -1867,11 +2024,11 @@ function renderToolbarControls() {
   statusWrap.innerHTML = `
     <div class="status-pill">
       <span class="status-dot pending" id="versionStatusDot"></span>
-      <span id="versionStatusText">${escapeHtml(t('status.version', '版本'))} ${escapeHtml(appVersion)} · ${escapeHtml(t('status.checking', '检测中'))}</span>
+      <span id="versionStatusText">${escapeHtml(t('status.version', ''))} ${escapeHtml(appVersion)} · ${escapeHtml(t('status.checking', ''))}</span>
     </div>
     <div class="status-pill">
       <span class="status-dot pending" id="healthStatusDot"></span>
-      <span id="healthStatusText">${escapeHtml(t('status.health', '服务状态'))} ${escapeHtml(t('status.checking', '检测中'))}</span>
+      <span id="healthStatusText">${escapeHtml(t('status.health', ''))} ${escapeHtml(t('status.checking', ''))}</span>
     </div>
   `;
   toolbar.appendChild(statusWrap);
@@ -2096,3 +2253,6 @@ init().catch((err) => {
   console.error(err);
   alert(t('form.initFailed', 'Initialization failed.'));
 });
+
+
+

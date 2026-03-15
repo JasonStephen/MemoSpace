@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 
 from db import fetch_all
+from music_cover import resolve_cover_candidates
 
 router = APIRouter(prefix='/api/music/public', tags=['public-music'])
 
@@ -58,3 +59,15 @@ def list_public_music(
         row['type'] = 'music'
         row['scope'] = 'public'
     return rows
+
+
+@router.post('/cover/resolve')
+def resolve_music_cover(payload: dict | None = Body(default=None)) -> dict[str, object]:
+    body = payload or {}
+    links = normalise_link_entries(body.get('links'))
+    preferred_icon_url = str(body.get('preferred_icon_url', '')).strip()
+    candidates = resolve_cover_candidates(links, preferred_icon_url)
+    return {
+        'primary': candidates[0] if candidates else '',
+        'candidates': candidates,
+    }

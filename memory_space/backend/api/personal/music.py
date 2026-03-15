@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from urllib.parse import urlparse
@@ -92,6 +92,7 @@ def _build_filter_clause(include_hidden: bool, hidden_only: bool) -> str:
     return 'WHERE hidden = 0'
 
 
+
 @router.get('')
 def list_personal_music(
     include_hidden: bool = Query(default=False),
@@ -121,6 +122,7 @@ def list_personal_music(
 def create_personal_music(payload: MusicMemoryIn) -> dict:
     links = normalise_link_entries([item.model_dump() for item in payload.links])
     validate_links_or_422(links)
+    icon_url = (payload.icon_url or '').strip()
     new_id = execute(
         """
         INSERT INTO personal_music_memory (
@@ -128,7 +130,7 @@ def create_personal_music(payload: MusicMemoryIn) -> dict:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         """,
         (
-            payload.icon_url,
+            icon_url,
             payload.title,
             payload.artist,
             payload.memory_time,
@@ -150,6 +152,7 @@ def update_personal_music(item_id: int, payload: MusicMemoryIn) -> dict:
 
     links = normalise_link_entries([item.model_dump() for item in payload.links])
     validate_links_or_422(links)
+    icon_url = (payload.icon_url or '').strip()
     execute(
         """
         UPDATE personal_music_memory
@@ -158,7 +161,7 @@ def update_personal_music(item_id: int, payload: MusicMemoryIn) -> dict:
         WHERE id = ?
         """,
         (
-            payload.icon_url,
+            icon_url,
             payload.title,
             payload.artist,
             payload.memory_time,
@@ -196,3 +199,4 @@ def update_personal_music_hidden(item_id: int, payload: HiddenStatusIn) -> dict:
         (1 if payload.hidden else 0, item_id),
     )
     return {'ok': True}
+

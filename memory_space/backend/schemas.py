@@ -9,7 +9,7 @@ class LinkEntryIn(BaseModel):
 
 
 class MusicMemoryIn(BaseModel):
-    icon_url: str = ''
+    icon_url: str | None = ''
     title: str = ''
     artist: str = ''
     memory_time: str = ''

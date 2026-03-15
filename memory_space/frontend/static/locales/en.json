@@ -1,4 +1,4 @@
-{
+﻿{
   "color.preset.calm": "Calm",
   "color.preset.clarity": "Clarity",
   "color.preset.freedom": "Freedom",
@@ -47,6 +47,7 @@
   "form.edit": "Edit",
   "form.externalLinks": "External Links",
   "form.iconUrl": "Cover URL",
+  "form.iconUrlInfo": "Currently only Netease Music and Spotify support auto cover retrieval.",
   "form.initFailed": "Initialization failed.",
   "form.linksHint": "Each provider accepts configured domains only.",
   "form.livePreview": "Live preview...",
@@ -137,3 +138,5 @@
   "settings.account.passwordConfirmFailed": "Password confirmation failed.",
   "settings.account.authRequired": "Authentication required."
 }
+
+
