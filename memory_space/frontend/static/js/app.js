@@ -20,11 +20,17 @@ const paginationConfig = {
   rowOptions: ['3', '6', '10', '15', 'auto'],
   autoCardHeight: 188,
   autoBottomPadding: 8,
-  autoOverflowTolerance: 1,
   autoHysteresisPx: 28,
   minCardWidthMusic: 320,
   minCardWidthMind: 260,
   defaultGap: 18,
+};
+const cardFadeConfig = {
+  durationMs: 500,
+  baseDelayMs: 40,
+  staggerMs: 36,
+  maxDelayMs: 260,
+  cooldownMs: 900,
 };
 
 const fallbackColorConfig = {
@@ -137,6 +143,8 @@ const state = {
   paginationAutoRowsResolved: null,
   paginationAutoMeasureCache: null,
   lastRenderedCardSignature: '',
+  lastRenderedVisibleCardIds: new Set(),
+  cardFadeLastAt: new Map(),
   cardCoverNodeCache: new Map(),
   coverCandidatesCache: new Map(),
   coverResolvePromiseCache: new Map(),
@@ -150,6 +158,10 @@ let toolbarLayoutBound = false;
 let themeSwitchTimer = null;
 let paginationResizeRaf = 0;
 let detailLayoutSyncToken = 0;
+let autoRowsRecalcRaf1 = 0;
+let autoRowsRecalcRaf2 = 0;
+let autoRowsRecalcTimer1 = 0;
+let autoRowsRecalcTimer2 = 0;
 const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 
 const detailPanel = document.getElementById('detailPanel');
@@ -847,13 +859,6 @@ function getPaginationRowsCount() {
     }
   }
   rows = Math.max(1, rows);
-
-  // Hard guard: if the page is already vertically overflowing, reduce rows immediately.
-  const pageOverflow = document.documentElement.scrollHeight - viewportHeight;
-  while (rows > 1 && pageOverflow > paginationConfig.autoOverflowTolerance) {
-    rows -= 1;
-    break;
-  }
   state.paginationAutoRowsResolved = rows;
   return rows;
 }
@@ -934,11 +939,13 @@ function renderPagination(totalItems, totalPages, startIndex, visibleCount, star
     if (currentPos <= 0) return;
     state.paginationStartIndex = starts[currentPos - 1];
     renderCards();
+    scheduleAutoRowsRecalcAfterPageChange();
   });
   bar.querySelector('#paginationNextBtn')?.addEventListener('click', () => {
     if (currentPos >= starts.length - 1) return;
     state.paginationStartIndex = starts[currentPos + 1];
     renderCards();
+    scheduleAutoRowsRecalcAfterPageChange();
   });
   bar.querySelector('#paginationRowsSelectInline')?.addEventListener('change', (event) => {
     const value = (event.target?.value || '3').toString().toLowerCase();
@@ -952,9 +959,11 @@ function renderPagination(totalItems, totalPages, startIndex, visibleCount, star
 }
 
 function renderCards({ skipIfSameCards = false } = {}) {
+  updateAutoRowsScrollLock();
   const totalItems = state.filteredItems.length;
   if (!totalItems) {
     state.lastRenderedCardSignature = '';
+    state.lastRenderedVisibleCardIds = new Set();
     renderPagination(0, 0, 0, 0);
     const emptyMessage = searchInput.value.trim()
       ? t('common.noMatch', 'No matching items')
@@ -1084,9 +1093,84 @@ function renderCards({ skipIfSameCards = false } = {}) {
     });
   });
 
+  applyCardFadeIn(pageItems);
   bindCardCoverFallbacks();
   state.lastRenderedCardSignature = cardSignature;
   renderPagination(totalItems, totalPages, startIndex, pageItems.length, starts, currentPos);
+}
+
+function scheduleAutoRowsRecalcAfterPageChange() {
+  if ((state.paginationRowsMode || '3').toLowerCase() !== 'auto') return;
+  if (autoRowsRecalcRaf1) window.cancelAnimationFrame(autoRowsRecalcRaf1);
+  if (autoRowsRecalcRaf2) window.cancelAnimationFrame(autoRowsRecalcRaf2);
+  if (autoRowsRecalcTimer1) window.clearTimeout(autoRowsRecalcTimer1);
+  if (autoRowsRecalcTimer2) window.clearTimeout(autoRowsRecalcTimer2);
+  const recalc = () => {
+    state.paginationAutoMeasureCache = null;
+    state.paginationAutoRowsResolved = null;
+    handlePaginationResize();
+  };
+  autoRowsRecalcRaf1 = window.requestAnimationFrame(() => {
+    autoRowsRecalcRaf1 = 0;
+    autoRowsRecalcRaf2 = window.requestAnimationFrame(() => {
+      autoRowsRecalcRaf2 = 0;
+      recalc();
+    });
+  });
+  autoRowsRecalcTimer1 = window.setTimeout(() => {
+    autoRowsRecalcTimer1 = 0;
+    recalc();
+  }, 180);
+  autoRowsRecalcTimer2 = window.setTimeout(() => {
+    autoRowsRecalcTimer2 = 0;
+    recalc();
+  }, 420);
+}
+
+function updateAutoRowsScrollLock() {
+  const shouldLock = (state.paginationRowsMode || '3').toLowerCase() === 'auto';
+  document.documentElement.classList.toggle('auto-rows-scroll-lock', shouldLock);
+  document.body.classList.toggle('auto-rows-scroll-lock', shouldLock);
+}
+
+function applyCardFadeIn(pageItems) {
+  const previousVisibleIds = state.lastRenderedVisibleCardIds || new Set();
+  const nextVisibleIds = new Set(pageItems.map((item) => item.id));
+  const now = Date.now();
+  let staggerIndex = 0;
+
+  memoryGrid.querySelectorAll('.card[data-id]').forEach((cardEl) => {
+    const id = Number(cardEl.getAttribute('data-id'));
+    if (!Number.isFinite(id) || id <= 0) return;
+    const isNewlyVisible = !previousVisibleIds.has(id);
+    const lastAt = Number(state.cardFadeLastAt.get(id) || 0);
+    const cooldownOk = now - lastAt >= cardFadeConfig.cooldownMs;
+    if (!isNewlyVisible || !cooldownOk) {
+      cardEl.classList.remove('card-fade-in');
+      cardEl.style.removeProperty('--card-fade-delay');
+      cardEl.style.removeProperty('--card-fade-duration');
+      return;
+    }
+    const delay = Math.min(
+      cardFadeConfig.maxDelayMs,
+      cardFadeConfig.baseDelayMs + (staggerIndex * cardFadeConfig.staggerMs),
+    );
+    staggerIndex += 1;
+    cardEl.style.setProperty('--card-fade-delay', `${delay}ms`);
+    cardEl.style.setProperty('--card-fade-duration', `${cardFadeConfig.durationMs}ms`);
+    cardEl.classList.add('card-fade-in');
+    state.cardFadeLastAt.set(id, now + delay);
+  });
+
+  if (state.cardFadeLastAt.size > 4000) {
+    const threshold = now - (cardFadeConfig.cooldownMs * 3);
+    for (const [id, ts] of state.cardFadeLastAt.entries()) {
+      if (ts < threshold && !nextVisibleIds.has(id)) {
+        state.cardFadeLastAt.delete(id);
+      }
+    }
+  }
+  state.lastRenderedVisibleCardIds = nextVisibleIds;
 }
 
 function renderTagList(tags) {

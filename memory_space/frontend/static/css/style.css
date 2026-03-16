@@ -80,6 +80,11 @@ html, body {
   font-family: var(--app-font-family);
 }
 
+html.auto-rows-scroll-lock,
+body.auto-rows-scroll-lock {
+  overflow-y: hidden;
+}
+
 body::before {
   content: '';
   position: fixed;
@@ -593,6 +598,16 @@ body.panel-open .detail-panel { transform: translateX(0); }
   position: relative;
   overflow: hidden;
   transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+}
+
+.card.card-fade-in {
+  animation: card-fade-in var(--card-fade-duration, 500ms) ease both;
+  animation-delay: var(--card-fade-delay, 0ms);
+}
+
+@keyframes card-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .card::before {
