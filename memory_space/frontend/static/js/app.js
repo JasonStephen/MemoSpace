@@ -14,6 +14,12 @@ const appVersion = window.__APP_VERSION__ || 'dev';
 const themeStorageKey = 'memory_space_theme_mode';
 const themePresetStoragePrefix = 'memory_space_theme_preset_';
 const statusPollIntervalMs = 15000;
+const paginationConfig = {
+  rows: 3,
+  minCardWidthMusic: 320,
+  minCardWidthMind: 260,
+  defaultGap: 18,
+};
 
 const fallbackColorConfig = {
   default_music: '#6d5efc',
@@ -118,6 +124,9 @@ const state = {
     serviceHealthy: null,
   },
   hiddenSpace: false,
+  currentPage: 1,
+  paginationStartIndex: 0,
+  paginationAnchorId: null,
   coverCandidatesCache: new Map(),
   coverResolvePromiseCache: new Map(),
   metadataResolveCache: new Map(),
@@ -128,6 +137,7 @@ let currentMarkdownEditor = null;
 let statusPollTimer = null;
 let toolbarLayoutBound = false;
 let themeSwitchTimer = null;
+let paginationResizeTimer = null;
 const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 
 const detailPanel = document.getElementById('detailPanel');
@@ -764,8 +774,104 @@ function renderCardLinkIcons(links) {
   `;
 }
 
+function getGridMinCardWidth() {
+  return pageType === 'music' ? paginationConfig.minCardWidthMusic : paginationConfig.minCardWidthMind;
+}
+
+function getGridGapWidth() {
+  const style = window.getComputedStyle(memoryGrid);
+  const value = parseFloat(style.columnGap || style.gap || `${paginationConfig.defaultGap}`);
+  return Number.isFinite(value) && value > 0 ? value : paginationConfig.defaultGap;
+}
+
+function getGridColumnCount() {
+  const width = memoryGrid.clientWidth || memoryGrid.getBoundingClientRect().width || 0;
+  if (!width) return 1;
+  const minCardWidth = getGridMinCardWidth();
+  const gap = getGridGapWidth();
+  return Math.max(1, Math.floor((width + gap) / (minCardWidth + gap)));
+}
+
+function getItemsPerPage() {
+  return Math.max(1, getGridColumnCount() * paginationConfig.rows);
+}
+
+function buildPaginationStarts(totalItems, itemsPerPage, currentStart) {
+  if (totalItems <= 0 || itemsPerPage <= 0) return [0];
+  const maxStart = Math.max(0, totalItems - 1);
+  const start = Math.min(Math.max(0, currentStart), maxStart);
+  const starts = new Set([0, start]);
+
+  let cursor = start;
+  while (cursor > 0) {
+    const prev = Math.max(0, cursor - itemsPerPage);
+    if (starts.has(prev)) break;
+    starts.add(prev);
+    cursor = prev;
+  }
+
+  cursor = start;
+  while (cursor < maxStart) {
+    if (cursor + itemsPerPage >= totalItems) break;
+    const next = Math.min(maxStart, cursor + itemsPerPage);
+    if (starts.has(next)) break;
+    starts.add(next);
+    cursor = next;
+  }
+
+  return Array.from(starts).sort((a, b) => a - b);
+}
+
+function ensurePaginationBar() {
+  let bar = document.getElementById('paginationBar');
+  if (bar) return bar;
+  const gridShell = document.querySelector('.grid-shell');
+  if (!gridShell || !gridShell.parentElement) return null;
+  bar = document.createElement('section');
+  bar.id = 'paginationBar';
+  bar.className = 'pagination-bar';
+  bar.hidden = true;
+  gridShell.insertAdjacentElement('afterend', bar);
+  return bar;
+}
+
+function renderPagination(totalItems, totalPages, startIndex, visibleCount, starts, currentPos) {
+  const bar = ensurePaginationBar();
+  if (!bar) return;
+  if (!totalItems || totalPages <= 1) {
+    bar.hidden = true;
+    bar.innerHTML = '';
+    return;
+  }
+
+  const firstIndex = startIndex + 1;
+  const lastIndex = startIndex + visibleCount;
+  bar.hidden = false;
+  bar.innerHTML = `
+    <div class="pagination-summary">${escapeHtml(t('pagination.summary', `${firstIndex}-${lastIndex} / ${totalItems}`))}</div>
+    <div class="pagination-actions">
+      <button class="secondary-btn pagination-btn" type="button" id="paginationPrevBtn" ${startIndex <= 0 ? 'disabled' : ''}>${escapeHtml(t('pagination.prev', 'Prev'))}</button>
+      <span class="pagination-page">${escapeHtml(t('pagination.page', `Page ${state.currentPage}/${totalPages}`))}</span>
+      <button class="secondary-btn pagination-btn" type="button" id="paginationNextBtn" ${currentPos >= starts.length - 1 ? 'disabled' : ''}>${escapeHtml(t('pagination.next', 'Next'))}</button>
+    </div>
+  `;
+
+  bar.querySelector('#paginationPrevBtn')?.addEventListener('click', () => {
+    if (currentPos <= 0) return;
+    state.paginationStartIndex = starts[currentPos - 1];
+    renderCards();
+  });
+  bar.querySelector('#paginationNextBtn')?.addEventListener('click', () => {
+    if (currentPos >= starts.length - 1) return;
+    state.paginationStartIndex = starts[currentPos + 1];
+    renderCards();
+  });
+}
+
 function renderCards() {
-  if (!state.filteredItems.length) {
+  const totalItems = state.filteredItems.length;
+  if (!totalItems) {
+    renderPagination(0, 0, 0, 0);
     const emptyMessage = searchInput.value.trim()
       ? t('common.noMatch', 'No matching items')
       : (state.hiddenSpace ? t('hidden.empty', 'Hidden space is empty.') : t('common.empty', 'Empty'));
@@ -773,7 +879,24 @@ function renderCards() {
     return;
   }
 
-  memoryGrid.innerHTML = state.filteredItems.map(item => {
+  const itemsPerPage = getItemsPerPage();
+  const maxStartIndex = Math.max(0, totalItems - 1);
+  state.paginationStartIndex = Math.min(Math.max(0, state.paginationStartIndex), maxStartIndex);
+  const starts = buildPaginationStarts(totalItems, itemsPerPage, state.paginationStartIndex);
+  let currentPos = starts.findIndex((value) => value === state.paginationStartIndex);
+  if (currentPos < 0) {
+    starts.push(state.paginationStartIndex);
+    starts.sort((a, b) => a - b);
+    currentPos = starts.findIndex((value) => value === state.paginationStartIndex);
+  }
+  const totalPages = Math.max(1, starts.length);
+  const startIndex = starts[Math.max(0, currentPos)];
+  state.paginationStartIndex = startIndex;
+  const pageItems = state.filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  state.paginationAnchorId = pageItems[0]?.id ?? null;
+  state.currentPage = Math.max(1, currentPos + 1);
+
+  memoryGrid.innerHTML = pageItems.map(item => {
     const isActive = item.id === state.selectedId;
     const avatar = pageType === 'music'
       ? `
@@ -850,6 +973,7 @@ function renderCards() {
   });
 
   bindCardCoverFallbacks();
+  renderPagination(totalItems, totalPages, startIndex, pageItems.length, starts, currentPos);
 }
 
 function renderTagList(tags) {
@@ -1556,16 +1680,40 @@ async function confirmDelete() {
   }
 }
 
-function applySearch() {
+function applySearch(resetPage = true) {
   const keyword = searchInput.value.trim().toLowerCase();
   state.filteredItems = keyword
     ? state.items.filter(item => itemSearchText(item).includes(keyword))
     : [...state.items];
+  if (resetPage) {
+    state.currentPage = 1;
+    state.paginationStartIndex = 0;
+    state.paginationAnchorId = state.filteredItems[0]?.id ?? null;
+  }
 
   if (state.selectedId && !state.filteredItems.some(item => item.id === state.selectedId)) {
     closeDetail();
   }
   renderCards();
+}
+
+function handlePaginationResize() {
+  if (paginationResizeTimer) {
+    window.clearTimeout(paginationResizeTimer);
+  }
+  paginationResizeTimer = window.setTimeout(() => {
+    if (!state.filteredItems.length) return;
+    const anchorId = state.paginationAnchorId;
+    const itemsPerPage = getItemsPerPage();
+    if (anchorId != null && itemsPerPage > 0) {
+      const anchorIndex = state.filteredItems.findIndex((item) => item.id === anchorId);
+      if (anchorIndex >= 0) {
+        state.paginationStartIndex = anchorIndex;
+        state.currentPage = Math.floor(anchorIndex / itemsPerPage) + 1;
+      }
+    }
+    renderCards();
+  }, 180);
 }
 
 function renderSearchFilterControl() {
@@ -2305,7 +2453,7 @@ async function loadItems() {
   applySearch();
 }
 
-searchInput.addEventListener('input', applySearch);
+searchInput.addEventListener('input', () => applySearch(true));
 addBtn.addEventListener('click', () => {
   if (pageMode === 'readonly') return;
   openFormModal('create');
@@ -2334,6 +2482,8 @@ window.addEventListener('keydown', (event) => {
     closeDetail();
   }
 });
+
+window.addEventListener('resize', handlePaginationResize);
 
 async function init() {
   initThemeMode();
