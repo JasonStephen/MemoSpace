@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 810 810" role="img" aria-label="Music MemoSpace Logo">
+  <defs>
+    <style>
+      .bg { fill: #fff; }
+      .fg { fill: #000; stroke-width: 0; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="810" height="810" rx="172" ry="172"/>
+
+  <!-- Scale down original mark and center it to leave padding inside the rounded square -->
+  <g transform="translate(81 159.22) scale(0.80)">
+    <polygon class="fg" points="161 145.88 405 289.88 649.35 145.88 405.18 0 161 145.88"/>
+    <polygon class="fg" points="157 156.88 157 276.77 399.5 408 399.5 298.72 157 156.88"/>
+    <polygon class="fg" points="410 298.88 410 408 653 276.88 653 156.88 410 298.88"/>
+    <polygon class="fg" points="663 162.88 663 209.53 731 244.88 405.18 422.64 78 244.88 147 209.88 147.56 162.88 5 235.88 405.18 446.13 806 234.88 663 162.88"/>
+    <polygon class="fg" points="663 220.88 711 244.88 663 271.83 663 220.88"/>
+    <polygon class="fg" points="99 244.88 148 271.88 148 220.77 99 244.88"/>
+    <polygon class="fg" points="0 243.88 0 301.11 405.5 508.09 810 299.88 810 243.88 405 454.88 0 243.88"/>
+    <polygon class="fg" points="157 390.64 399.5 515.23 399.5 613.96 157 482.21 157 390.64"/>
+    <polygon class="fg" points="410 514.88 410 613.96 653 481.53 653 390.64 410 514.88"/>
+  </g>
+</svg>
