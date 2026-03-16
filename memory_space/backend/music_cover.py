@@ -2,12 +2,15 @@
 
 import html
 import json
+import logging
 import re
 from functools import lru_cache
 from typing import Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
 
 USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -277,6 +280,35 @@ def _parse_spotify_title_like_from_html(html_text: str) -> dict[str, str]:
     return {'title': '', 'artist': ''}
 
 
+def _extract_netease_artist_fallback(html_text: str) -> str:
+    if not html_text:
+        return ''
+
+    # Common Netease metadata form:
+    # <meta property="og:description" content="歌手：XXX。所属专辑：YYY。">
+    desc_match = re.search(
+        r'<meta\s+property="og:description"\s+content="([^"]+)"',
+        html_text,
+        re.IGNORECASE,
+    )
+    if desc_match:
+        desc = html.unescape(desc_match.group(1).strip())
+        # Chinese punctuation + English punctuation fallback.
+        artist_match = re.search(r'歌手[：:]\s*([^。.;；]+)', desc)
+        if artist_match:
+            return _clean_html_text(artist_match.group(1))
+
+    # Fallback from title-like text: "<song> - <artist>"
+    title_match = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE | re.DOTALL)
+    if title_match:
+        title_text = _clean_html_text(title_match.group(1))
+        split_match = re.search(r'^(.*?)\s*-\s*(.*?)\s*(?:-.*)?$', title_text)
+        if split_match:
+            return _clean_html_text(split_match.group(2))
+
+    return ''
+
+
 @lru_cache(maxsize=512)
 def _resolve_netease_metadata(raw_url: str) -> dict[str, str]:
     parsed = parse_netease_content(raw_url)
@@ -308,11 +340,31 @@ def _resolve_netease_metadata(raw_url: str) -> dict[str, str]:
     if artist_match:
         artist = _clean_html_text(artist_match.group(1))
 
+    if not artist:
+        artist = _extract_netease_artist_fallback(html_text)
+
     if not title:
         og_title = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html_text, re.IGNORECASE)
         if og_title:
             raw_title = html.unescape(og_title.group(1).strip())
-            title = re.sub(r'\s*-\s*缃戞槗浜戦煶涔怽s*$', '', raw_title)
+            title = re.sub(r'\s*-\s*(?:网易云音乐|NetEase Cloud Music)\s*$', '', raw_title, flags=re.IGNORECASE)
+
+    if not artist:
+        logger.warning(
+            'netease metadata artist missing: url=%s canonical=%s html_len=%s has_song_name=%s has_artist_class=%s',
+            raw_url,
+            parsed.get('url', ''),
+            len(html_text or ''),
+            bool(name_match),
+            bool(artist_match),
+        )
+        debug_artist_block = re.search(
+            r'class="m-songInfo-artist"[^>]*>(.*?)</h2>',
+            html_text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if debug_artist_block:
+            logger.debug('netease artist raw block: %s', _clean_html_text(debug_artist_block.group(1))[:200])
 
     return {'title': title, 'artist': artist}
 
