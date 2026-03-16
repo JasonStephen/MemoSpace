@@ -36,9 +36,4 @@ Thumbs.db
 memory_space/data/
 
 # Desktop wrapper local artifacts
-desktop_app/.venv/
-desktop_app/venv/
-desktop_app/build/
-desktop_app/dist/
-desktop_app/*.spec
-desktop_app/runtime/
+desktop_app/
