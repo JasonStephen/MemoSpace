@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from config import LINK_OPTIONS
 from db import execute, fetch_all, fetch_one
+from music_cover import resolve_cover_candidates
 from schemas import HiddenStatusIn, MusicMemoryIn
 
 router = APIRouter(prefix='/api/music/personal', tags=['personal-music'])
@@ -92,6 +93,26 @@ def _build_filter_clause(include_hidden: bool, hidden_only: bool) -> str:
     return 'WHERE hidden = 0'
 
 
+def _parse_icon_candidates(raw_icon_url: object) -> list[str]:
+    text = str(raw_icon_url or '').strip()
+    if not text:
+        return []
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, list):
+        result: list[str] = []
+        seen: set[str] = set()
+        for value in payload:
+            url = str(value or '').strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            result.append(url)
+        return result
+    return [text]
+
 
 @router.get('')
 def list_personal_music(
@@ -111,6 +132,9 @@ def list_personal_music(
 
     rows = fetch_all(query)
     for row in rows:
+        candidates = _parse_icon_candidates(row.get('icon_url'))
+        row['icon_candidates'] = candidates
+        row['icon_url'] = candidates[0] if candidates else ''
         row['tags'] = json.loads(row.pop('tags_json') or '[]')
         row['links'] = normalise_link_entries(json.loads(row.pop('links_json') or '[]'))
         row['hidden'] = bool(row.get('hidden', 0))
@@ -123,6 +147,8 @@ def create_personal_music(payload: MusicMemoryIn) -> dict:
     links = normalise_link_entries([item.model_dump() for item in payload.links])
     validate_links_or_422(links)
     icon_url = (payload.icon_url or '').strip()
+    icon_candidates = resolve_cover_candidates(links, icon_url)
+    stored_icon_value = json.dumps(icon_candidates, ensure_ascii=False) if icon_candidates else icon_url
     new_id = execute(
         """
         INSERT INTO personal_music_memory (
@@ -130,7 +156,7 @@ def create_personal_music(payload: MusicMemoryIn) -> dict:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         """,
         (
-            icon_url,
+            stored_icon_value,
             payload.title,
             payload.artist,
             payload.memory_time,
@@ -153,6 +179,8 @@ def update_personal_music(item_id: int, payload: MusicMemoryIn) -> dict:
     links = normalise_link_entries([item.model_dump() for item in payload.links])
     validate_links_or_422(links)
     icon_url = (payload.icon_url or '').strip()
+    icon_candidates = resolve_cover_candidates(links, icon_url)
+    stored_icon_value = json.dumps(icon_candidates, ensure_ascii=False) if icon_candidates else icon_url
     execute(
         """
         UPDATE personal_music_memory
@@ -161,7 +189,7 @@ def update_personal_music(item_id: int, payload: MusicMemoryIn) -> dict:
         WHERE id = ?
         """,
         (
-            icon_url,
+            stored_icon_value,
             payload.title,
             payload.artist,
             payload.memory_time,
@@ -199,4 +227,3 @@ def update_personal_music_hidden(item_id: int, payload: HiddenStatusIn) -> dict:
         (1 if payload.hidden else 0, item_id),
     )
     return {'ok': True}
-

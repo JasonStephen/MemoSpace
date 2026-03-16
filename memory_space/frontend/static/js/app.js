@@ -14,8 +14,14 @@ const appVersion = window.__APP_VERSION__ || 'dev';
 const themeStorageKey = 'memory_space_theme_mode';
 const themePresetStoragePrefix = 'memory_space_theme_preset_';
 const statusPollIntervalMs = 15000;
+const paginationRowsStorageKey = 'memory_space_pagination_rows_mode';
 const paginationConfig = {
   rows: 3,
+  rowOptions: ['3', '6', '10', '15', 'auto'],
+  autoCardHeight: 188,
+  autoBottomPadding: 8,
+  autoOverflowTolerance: 1,
+  autoHysteresisPx: 28,
   minCardWidthMusic: 320,
   minCardWidthMind: 260,
   defaultGap: 18,
@@ -127,6 +133,11 @@ const state = {
   currentPage: 1,
   paginationStartIndex: 0,
   paginationAnchorId: null,
+  paginationRowsMode: '3',
+  paginationAutoRowsResolved: null,
+  paginationAutoMeasureCache: null,
+  lastRenderedCardSignature: '',
+  cardCoverNodeCache: new Map(),
   coverCandidatesCache: new Map(),
   coverResolvePromiseCache: new Map(),
   metadataResolveCache: new Map(),
@@ -137,7 +148,8 @@ let currentMarkdownEditor = null;
 let statusPollTimer = null;
 let toolbarLayoutBound = false;
 let themeSwitchTimer = null;
-let paginationResizeTimer = null;
+let paginationResizeRaf = 0;
+let detailLayoutSyncToken = 0;
 const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 
 const detailPanel = document.getElementById('detailPanel');
@@ -525,47 +537,27 @@ function coverLinksCacheKey(links) {
   return JSON.stringify(normaliseLinks(links || []));
 }
 
-async function resolveMusicCoverCandidates(links, preferredIconUrl = '') {
-  const normalizedLinks = normaliseLinks(links);
-  if (!normalizedLinks.length) {
-    return dedupeCoverUrls([preferredIconUrl]);
-  }
-
-  const cacheKey = `${coverLinksCacheKey(normalizedLinks)}|${(preferredIconUrl || '').trim()}`;
-  if (state.coverCandidatesCache.has(cacheKey)) {
-    return state.coverCandidatesCache.get(cacheKey);
-  }
-  if (state.coverResolvePromiseCache.has(cacheKey)) {
-    return state.coverResolvePromiseCache.get(cacheKey);
-  }
-
-  const pending = (async () => {
+function parseStoredIconCandidates(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return dedupeCoverUrls(raw);
+  const text = raw.toString().trim();
+  if (!text) return [];
+  if (text.startsWith('[')) {
     try {
-      const response = await fetch('/api/music/public/cover/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          links: normalizedLinks,
-          preferred_icon_url: (preferredIconUrl || '').toString().trim(),
-        }),
-      });
-      if (!response.ok) {
-        return dedupeCoverUrls([preferredIconUrl]);
-      }
-      const payload = await response.json();
-      const candidates = dedupeCoverUrls(payload?.candidates || []);
-      const finalCandidates = candidates.length ? candidates : dedupeCoverUrls([preferredIconUrl]);
-      state.coverCandidatesCache.set(cacheKey, finalCandidates);
-      return finalCandidates;
-    } catch {
-      return dedupeCoverUrls([preferredIconUrl]);
-    } finally {
-      state.coverResolvePromiseCache.delete(cacheKey);
-    }
-  })();
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return dedupeCoverUrls(parsed);
+    } catch {}
+  }
+  return dedupeCoverUrls([text]);
+}
 
-  state.coverResolvePromiseCache.set(cacheKey, pending);
-  return pending;
+async function resolveMusicCoverCandidates(links, preferredIconUrl = '', iconCandidates = []) {
+  const preferred = (preferredIconUrl || '').toString().trim();
+  const stored = parseStoredIconCandidates(iconCandidates);
+  if (stored.length) {
+    return dedupeCoverUrls([preferred, ...stored]);
+  }
+  return dedupeCoverUrls([preferred]);
 }
 
 async function resolveMusicMetadataFromLinks(links) {
@@ -633,33 +625,45 @@ function tryApplyNextCover(imgEl, candidates) {
 }
 
 function bindCoverFallback(imgEl, item, options = {}) {
-  if (!imgEl || !item || imgEl.dataset.coverFallbackBound === '1') return;
-  imgEl.dataset.coverFallbackBound = '1';
-  imgEl.dataset.coverCandidateIndex = '-1';
+  if (!imgEl || !item) return;
+
+  const ensureResolveWhenEmpty = () => {
+    const currentSrc = (imgEl.getAttribute('src') || '').trim();
+    if (currentSrc || imgEl.dataset.coverResolvePending === '1') return;
+    imgEl.dataset.coverResolvePending = '1';
+    void (async () => {
+      try {
+        const candidates = await resolveMusicCoverCandidates(item.links, item.icon_url || '', item.icon_candidates || []);
+        if (!candidates.length) {
+          if (hideOnFail) {
+            imgEl.style.display = 'none';
+            return;
+          }
+          if (replaceWithEmpty) {
+            imgEl.outerHTML = `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`;
+          }
+          return;
+        }
+        imgEl.dataset.coverCandidateIndex = '0';
+        imgEl.style.display = '';
+        imgEl.src = candidates[0];
+      } finally {
+        imgEl.dataset.coverResolvePending = '0';
+      }
+    })();
+  };
 
   const hideOnFail = !!options.hideOnFail;
   const replaceWithEmpty = !!options.replaceWithEmpty;
 
-  imgEl.addEventListener('error', () => {
-    void (async () => {
-      const candidates = await resolveMusicCoverCandidates(item.links, item.icon_url || '');
-      if (tryApplyNextCover(imgEl, candidates)) return;
+  if (imgEl.dataset.coverFallbackBound !== '1') {
+    imgEl.dataset.coverFallbackBound = '1';
+    imgEl.dataset.coverCandidateIndex = imgEl.dataset.coverCandidateIndex || '-1';
+    imgEl.addEventListener('error', () => {
+      void (async () => {
+        const candidates = await resolveMusicCoverCandidates(item.links, item.icon_url || '', item.icon_candidates || []);
+        if (tryApplyNextCover(imgEl, candidates)) return;
 
-      if (hideOnFail) {
-        imgEl.style.display = 'none';
-        return;
-      }
-      if (replaceWithEmpty) {
-        imgEl.outerHTML = `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`;
-      }
-    })();
-  });
-
-  const currentSrc = (imgEl.getAttribute('src') || '').trim();
-  if (!currentSrc) {
-    void (async () => {
-      const candidates = await resolveMusicCoverCandidates(item.links, item.icon_url || '');
-      if (!candidates.length) {
         if (hideOnFail) {
           imgEl.style.display = 'none';
           return;
@@ -667,13 +671,11 @@ function bindCoverFallback(imgEl, item, options = {}) {
         if (replaceWithEmpty) {
           imgEl.outerHTML = `<div class="detail-avatar">${escapeHtml(t('common.empty', 'Empty'))}</div>`;
         }
-        return;
-      }
-      imgEl.dataset.coverCandidateIndex = '0';
-      imgEl.style.display = '';
-      imgEl.src = candidates[0];
-    })();
+      })();
+    });
   }
+
+  ensureResolveWhenEmpty();
 }
 
 function bindCardCoverFallbacks() {
@@ -793,7 +795,67 @@ function getGridColumnCount() {
 }
 
 function getItemsPerPage() {
-  return Math.max(1, getGridColumnCount() * paginationConfig.rows);
+  return Math.max(1, getGridColumnCount() * getPaginationRowsCount());
+}
+
+function getPaginationRowsCount() {
+  const mode = (state.paginationRowsMode || '3').toString().toLowerCase();
+  if (mode !== 'auto') {
+    state.paginationAutoRowsResolved = null;
+    const rows = Number.parseInt(mode, 10);
+    return Number.isFinite(rows) && rows > 0 ? rows : paginationConfig.rows;
+  }
+
+  const measureCardHeight = () => {
+    const cache = state.paginationAutoMeasureCache;
+    const cacheWindowMs = 220;
+    const width = Math.round(memoryGrid.clientWidth || 0);
+    const key = `${width}|${getGridColumnCount()}|${state.filteredItems.length}`;
+    const now = Date.now();
+    if (cache && cache.key === key && now - cache.ts <= cacheWindowMs) {
+      return cache.height;
+    }
+    const cards = Array.from(memoryGrid.querySelectorAll('.card'));
+    if (!cards.length) return paginationConfig.autoCardHeight;
+    const sample = cards.slice(0, Math.min(cards.length, 16));
+    const maxHeight = sample.reduce((max, card) => {
+      const h = card.getBoundingClientRect().height || 0;
+      return h > max ? h : max;
+    }, 0);
+    const measured = Math.max(paginationConfig.autoCardHeight, Math.round(maxHeight));
+    state.paginationAutoMeasureCache = { key, ts: now, height: measured };
+    return measured;
+  };
+
+  const gridTop = memoryGrid.getBoundingClientRect().top;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+  const availableHeight = Math.max(180, viewportHeight - gridTop - paginationConfig.autoBottomPadding);
+  const gap = getGridGapWidth();
+  const rowUnit = measureCardHeight() + gap;
+  const maxRowsBySpace = Math.max(1, Math.floor((availableHeight + gap) / rowUnit));
+
+  // Hysteresis to avoid row count bouncing at threshold heights.
+  const prevRows = Number(state.paginationAutoRowsResolved || 0);
+  let rows = maxRowsBySpace;
+  if (prevRows > 0) {
+    const lowerBound = prevRows * rowUnit - gap;
+    const upperBound = (prevRows + 1) * rowUnit - gap + paginationConfig.autoHysteresisPx;
+    if (availableHeight >= lowerBound && availableHeight < upperBound) {
+      rows = prevRows;
+    } else if (availableHeight >= upperBound) {
+      rows = Math.max(prevRows + 1, maxRowsBySpace);
+    }
+  }
+  rows = Math.max(1, rows);
+
+  // Hard guard: if the page is already vertically overflowing, reduce rows immediately.
+  const pageOverflow = document.documentElement.scrollHeight - viewportHeight;
+  while (rows > 1 && pageOverflow > paginationConfig.autoOverflowTolerance) {
+    rows -= 1;
+    break;
+  }
+  state.paginationAutoRowsResolved = rows;
+  return rows;
 }
 
 function buildPaginationStarts(totalItems, itemsPerPage, currentStart) {
@@ -826,19 +888,19 @@ function ensurePaginationBar() {
   let bar = document.getElementById('paginationBar');
   if (bar) return bar;
   const gridShell = document.querySelector('.grid-shell');
-  if (!gridShell || !gridShell.parentElement) return null;
+  if (!gridShell) return null;
   bar = document.createElement('section');
   bar.id = 'paginationBar';
   bar.className = 'pagination-bar';
-  bar.hidden = true;
-  gridShell.insertAdjacentElement('afterend', bar);
+  bar.hidden = false;
+  gridShell.insertAdjacentElement('afterbegin', bar);
   return bar;
 }
 
 function renderPagination(totalItems, totalPages, startIndex, visibleCount, starts, currentPos) {
   const bar = ensurePaginationBar();
   if (!bar) return;
-  if (!totalItems || totalPages <= 1) {
+  if (!totalItems) {
     bar.hidden = true;
     bar.innerHTML = '';
     return;
@@ -848,11 +910,23 @@ function renderPagination(totalItems, totalPages, startIndex, visibleCount, star
   const lastIndex = startIndex + visibleCount;
   bar.hidden = false;
   bar.innerHTML = `
-    <div class="pagination-summary">${escapeHtml(t('pagination.summary', `${firstIndex}-${lastIndex} / ${totalItems}`))}</div>
     <div class="pagination-actions">
       <button class="secondary-btn pagination-btn" type="button" id="paginationPrevBtn" ${startIndex <= 0 ? 'disabled' : ''}>${escapeHtml(t('pagination.prev', 'Prev'))}</button>
       <span class="pagination-page">${escapeHtml(t('pagination.page', `Page ${state.currentPage}/${totalPages}`))}</span>
       <button class="secondary-btn pagination-btn" type="button" id="paginationNextBtn" ${currentPos >= starts.length - 1 ? 'disabled' : ''}>${escapeHtml(t('pagination.next', 'Next'))}</button>
+      <span class="pagination-summary">${escapeHtml(t('pagination.summary', `${firstIndex}-${lastIndex} / ${totalItems}`))}</span>
+      <label class="pagination-rows-wrap">
+        <span class="pagination-rows-label">${escapeHtml(t('pagination.rows', 'Rows'))}</span>
+        <select id="paginationRowsSelectInline">
+          ${paginationConfig.rowOptions.map((option) => {
+            const selected = option === state.paginationRowsMode ? 'selected' : '';
+            const label = option === 'auto'
+              ? t('pagination.auto', 'Auto')
+              : option;
+            return `<option value="${escapeHtml(option)}" ${selected}>${escapeHtml(label)}</option>`;
+          }).join('')}
+        </select>
+      </label>
     </div>
   `;
 
@@ -866,11 +940,21 @@ function renderPagination(totalItems, totalPages, startIndex, visibleCount, star
     state.paginationStartIndex = starts[currentPos + 1];
     renderCards();
   });
+  bar.querySelector('#paginationRowsSelectInline')?.addEventListener('change', (event) => {
+    const value = (event.target?.value || '3').toString().toLowerCase();
+    state.paginationRowsMode = paginationConfig.rowOptions.includes(value) ? value : '3';
+    localStorage.setItem(paginationRowsStorageKey, state.paginationRowsMode);
+    state.paginationStartIndex = 0;
+    state.currentPage = 1;
+    state.paginationAnchorId = state.filteredItems[0]?.id ?? null;
+    renderCards();
+  });
 }
 
-function renderCards() {
+function renderCards({ skipIfSameCards = false } = {}) {
   const totalItems = state.filteredItems.length;
   if (!totalItems) {
+    state.lastRenderedCardSignature = '';
     renderPagination(0, 0, 0, 0);
     const emptyMessage = searchInput.value.trim()
       ? t('common.noMatch', 'No matching items')
@@ -895,6 +979,18 @@ function renderCards() {
   const pageItems = state.filteredItems.slice(startIndex, startIndex + itemsPerPage);
   state.paginationAnchorId = pageItems[0]?.id ?? null;
   state.currentPage = Math.max(1, currentPos + 1);
+  const cardSignature = `${state.selectedId || ''}|${pageItems.map(item => item.id).join(',')}`;
+
+  if (skipIfSameCards && state.lastRenderedCardSignature === cardSignature) {
+    renderPagination(totalItems, totalPages, startIndex, pageItems.length, starts, currentPos);
+    return;
+  }
+
+  memoryGrid.querySelectorAll('.card-avatar-img[data-item-id]').forEach((imgEl) => {
+    const itemId = Number(imgEl.getAttribute('data-item-id'));
+    if (!Number.isFinite(itemId) || itemId <= 0) return;
+    state.cardCoverNodeCache.set(itemId, imgEl);
+  });
 
   memoryGrid.innerHTML = pageItems.map(item => {
     const isActive = item.id === state.selectedId;
@@ -946,6 +1042,22 @@ function renderCards() {
     `;
   }).join('');
 
+  memoryGrid.querySelectorAll('.card-avatar-img[data-item-id]').forEach((imgEl) => {
+    const itemId = Number(imgEl.getAttribute('data-item-id'));
+    if (!Number.isFinite(itemId) || itemId <= 0) return;
+    const cachedImg = state.cardCoverNodeCache.get(itemId);
+    if (!cachedImg || cachedImg === imgEl) return;
+    cachedImg.className = imgEl.className;
+    cachedImg.setAttribute('data-item-id', String(itemId));
+    const inlineStyle = imgEl.getAttribute('style');
+    if (inlineStyle) {
+      cachedImg.setAttribute('style', inlineStyle);
+    } else {
+      cachedImg.removeAttribute('style');
+    }
+    imgEl.replaceWith(cachedImg);
+  });
+
   memoryGrid.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', () => {
       const id = Number(card.dataset.id);
@@ -973,6 +1085,7 @@ function renderCards() {
   });
 
   bindCardCoverFallbacks();
+  state.lastRenderedCardSignature = cardSignature;
   renderPagination(totalItems, totalPages, startIndex, pageItems.length, starts, currentPos);
 }
 
@@ -1144,6 +1257,7 @@ function bindExternalLinkHandlers() {
 }
 
 function openDetail(item) {
+  const panelWasOpen = detailPanel.getAttribute('aria-hidden') === 'false';
   const avatarHtml = pageType === 'music'
     ? `<img class="detail-avatar" data-item-id="${item.id}" src="${escapeHtml(item.icon_url || '')}" alt="avatar" ${item.icon_url?.trim() ? '' : 'style="display:none"'} />`
     : '';
@@ -1186,13 +1300,20 @@ function openDetail(item) {
 
   document.body.classList.add('panel-open');
   detailPanel.setAttribute('aria-hidden', 'false');
+  if (!panelWasOpen) {
+    syncPaginationAfterDetailToggle();
+  }
 }
 
 function closeDetail() {
+  const panelWasOpen = detailPanel.getAttribute('aria-hidden') === 'false';
   document.body.classList.remove('panel-open');
   detailPanel.setAttribute('aria-hidden', 'true');
   state.selectedId = null;
   renderCards();
+  if (panelWasOpen) {
+    syncPaginationAfterDetailToggle();
+  }
 }
 
 function buildLinkProviderOptions(selectedProvider = '') {
@@ -1698,10 +1819,12 @@ function applySearch(resetPage = true) {
 }
 
 function handlePaginationResize() {
-  if (paginationResizeTimer) {
-    window.clearTimeout(paginationResizeTimer);
+  if (paginationResizeRaf) {
+    window.cancelAnimationFrame(paginationResizeRaf);
   }
-  paginationResizeTimer = window.setTimeout(() => {
+  paginationResizeRaf = window.requestAnimationFrame(() => {
+    paginationResizeRaf = 0;
+    state.paginationAutoMeasureCache = null;
     if (!state.filteredItems.length) return;
     const anchorId = state.paginationAnchorId;
     const itemsPerPage = getItemsPerPage();
@@ -1712,8 +1835,27 @@ function handlePaginationResize() {
         state.currentPage = Math.floor(anchorIndex / itemsPerPage) + 1;
       }
     }
-    renderCards();
-  }, 180);
+    renderCards({ skipIfSameCards: true });
+  });
+}
+
+function syncPaginationAfterDetailToggle() {
+  handlePaginationResize();
+  const token = ++detailLayoutSyncToken;
+  const finish = () => {
+    if (token !== detailLayoutSyncToken) return;
+    handlePaginationResize();
+  };
+  const onTransitionEnd = (event) => {
+    if (event.target !== detailPanel || event.propertyName !== 'transform') return;
+    detailPanel.removeEventListener('transitionend', onTransitionEnd);
+    finish();
+  };
+  detailPanel.addEventListener('transitionend', onTransitionEnd);
+  window.setTimeout(() => {
+    detailPanel.removeEventListener('transitionend', onTransitionEnd);
+    finish();
+  }, 340);
 }
 
 function renderSearchFilterControl() {
@@ -2446,10 +2588,13 @@ async function loadItems() {
   state.items = data.map(item => ({
     ...item,
     scope: item.scope || pageScope,
+    icon_candidates: parseStoredIconCandidates(item.icon_candidates || item.icon_url || ''),
     tags: Array.isArray(item.tags) ? item.tags : [],
     links: normaliseLinks(item.links),
     hidden: !!item.hidden,
   }));
+  state.cardCoverNodeCache.clear();
+  state.lastRenderedCardSignature = '';
   applySearch();
 }
 
@@ -2493,7 +2638,12 @@ async function init() {
   applyEffectiveFontFamily();
   const preferredLocale = localStorage.getItem(localeStorageKey) || state.defaultLocale;
   await setLocale(preferredLocale);
+  const savedRowsMode = (localStorage.getItem(paginationRowsStorageKey) || '3').toString().toLowerCase();
+  state.paginationRowsMode = paginationConfig.rowOptions.includes(savedRowsMode) ? savedRowsMode : '3';
   await loadItems();
+  window.requestAnimationFrame(() => {
+    handlePaginationResize();
+  });
   startSystemStatusPolling();
 }
 

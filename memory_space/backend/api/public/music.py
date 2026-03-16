@@ -33,6 +33,27 @@ def normalise_link_entries(raw_links: object) -> list[dict[str, str]]:
     return []
 
 
+def _parse_icon_candidates(raw_icon_url: object) -> list[str]:
+    text = str(raw_icon_url or '').strip()
+    if not text:
+        return []
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, list):
+        result: list[str] = []
+        seen: set[str] = set()
+        for value in payload:
+            url = str(value or '').strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            result.append(url)
+        return result
+    return [text]
+
+
 @router.get('')
 def list_public_music(
     include_hidden: bool = Query(default=False),
@@ -53,6 +74,9 @@ def list_public_music(
     rows = fetch_all(query)
     for row in rows:
         row['source_id'] = row['id']
+        candidates = _parse_icon_candidates(row.get('icon_url'))
+        row['icon_candidates'] = candidates
+        row['icon_url'] = candidates[0] if candidates else ''
         row['tags'] = json.loads(row.pop('tags_json') or '[]')
         row['links'] = normalise_link_entries(json.loads(row.pop('links_json') or '[]'))
         row['hidden'] = bool(row.get('hidden', 0))
@@ -73,21 +97,15 @@ def resolve_music_cover(payload: dict | None = Body(default=None)) -> dict[str, 
     }
 
 
-
 @router.post('/metadata/resolve')
 def resolve_music_meta(payload: dict | None = Body(default=None)) -> dict[str, object]:
     body = payload or {}
     links = normalise_link_entries(body.get('links'))
     return resolve_music_metadata(links)
 
+
 @router.post('/netease/resolve')
 def resolve_netease_short_link(payload: dict | None = Body(default=None)) -> dict[str, str]:
     body = payload or {}
     raw_url = str(body.get('url', '')).strip()
     return resolve_netease_link(raw_url)
-
-
-
-
-
-

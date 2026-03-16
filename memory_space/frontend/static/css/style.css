@@ -417,6 +417,26 @@ body.panel-open .detail-panel { transform: translateX(0); }
   margin-bottom: 0;
 }
 
+.filter-divider {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+}
+
+.filter-select-wrap {
+  display: block;
+}
+
+.filter-select-wrap select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  color: var(--text);
+  padding: 8px 10px;
+  outline: none;
+}
+
 .search-box input {
   width: 100%;
   border: 1px solid var(--border);
@@ -478,7 +498,9 @@ body.panel-open .detail-panel { transform: translateX(0); }
 
 .grid-shell {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
   width: 100%;
   padding: 0 10%;
 }
@@ -493,11 +515,11 @@ body.panel-open .detail-panel { transform: translateX(0); }
 .pagination-bar {
   width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  justify-content: flex-start;
   gap: 12px;
-  margin: 14px auto 0;
-  padding: 0 10%;
+  margin: 0 0 12px;
+  padding: 0;
 }
 
 .pagination-summary {
@@ -508,7 +530,8 @@ body.panel-open .detail-panel { transform: translateX(0); }
 .pagination-actions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .pagination-btn {
@@ -527,6 +550,26 @@ body.panel-open .detail-panel { transform: translateX(0); }
   color: var(--subtext);
   min-width: 110px;
   text-align: center;
+}
+
+.pagination-rows-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagination-rows-label {
+  font-size: 12px;
+  color: var(--subtext);
+}
+
+.pagination-rows-wrap select {
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  color: var(--text);
+  padding: 0 10px;
 }
 
 .music-grid {
@@ -1446,8 +1489,7 @@ html[data-theme="dark"] .EasyMDEContainer .CodeMirror-selected {
   .grid-shell { padding: 0; }
   .pagination-bar {
     padding: 0;
-    flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
   }
   .settings-layout { grid-template-columns: 1fr; }
   .settings-nav {
