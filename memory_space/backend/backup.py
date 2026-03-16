@@ -29,15 +29,48 @@ def _list_backups() -> list[Path]:
 
 
 def _remove_with_retry(path: Path, retries: int = 3, delay_seconds: float = 0.25) -> bool:
+    last_error: OSError | None = None
     for attempt in range(retries):
         try:
             path.unlink(missing_ok=True)
             return True
-        except OSError:
+        except OSError as exc:
+            last_error = exc
+            logger.debug(
+                'backup remove retry %s/%s failed for %s: %s',
+                attempt + 1,
+                retries,
+                path,
+                exc,
+            )
             if attempt >= retries - 1:
                 break
             time.sleep(delay_seconds * (attempt + 1))
+    if last_error is not None:
+        logger.debug(
+            'backup remove final failure for %s: errno=%s winerror=%s type=%s msg=%s',
+            path,
+            getattr(last_error, 'errno', None),
+            getattr(last_error, 'winerror', None),
+            type(last_error).__name__,
+            last_error,
+        )
     return False
+
+
+def _backup_file_debug_info(path: Path) -> str:
+    exists = path.exists()
+    if not exists:
+        return f'exists={exists}'
+    try:
+        stat = path.stat()
+        readonly = not bool(stat.st_mode & 0o200)
+        return (
+            f'exists={exists} size={stat.st_size} '
+            f'mtime={int(stat.st_mtime)} readonly={readonly}'
+        )
+    except OSError as exc:
+        return f'exists={exists} stat_error={type(exc).__name__}:{exc}'
 
 
 def _try_acquire_backup_lock() -> tuple[int | None, bool]:
@@ -75,7 +108,11 @@ def rotate_backups(max_backups: int) -> None:
     for old_file in backups[keep:]:
         removed = _remove_with_retry(old_file)
         if not removed:
-            logger.warning('failed to remove old backup %s: file is still in use', old_file)
+            logger.warning(
+                'failed to remove old backup %s: file is still in use (%s)',
+                old_file,
+                _backup_file_debug_info(old_file),
+            )
 
 
 def create_db_backup(max_backups: int) -> Path | None:
