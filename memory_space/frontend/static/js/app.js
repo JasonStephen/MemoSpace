@@ -948,13 +948,24 @@ function renderPagination(totalItems, totalPages, startIndex, visibleCount, star
     scheduleAutoRowsRecalcAfterPageChange();
   });
   bar.querySelector('#paginationRowsSelectInline')?.addEventListener('change', (event) => {
+    const currentAnchorId = state.paginationAnchorId
+      ?? state.filteredItems[state.paginationStartIndex]?.id
+      ?? state.filteredItems[0]?.id
+      ?? null;
     const value = (event.target?.value || '3').toString().toLowerCase();
     state.paginationRowsMode = paginationConfig.rowOptions.includes(value) ? value : '3';
     localStorage.setItem(paginationRowsStorageKey, state.paginationRowsMode);
-    state.paginationStartIndex = 0;
-    state.currentPage = 1;
-    state.paginationAnchorId = state.filteredItems[0]?.id ?? null;
+    state.paginationAutoMeasureCache = null;
+    state.paginationAutoRowsResolved = null;
+    if (currentAnchorId != null) {
+      const anchorIndex = state.filteredItems.findIndex((item) => item.id === currentAnchorId);
+      state.paginationStartIndex = anchorIndex >= 0 ? anchorIndex : 0;
+    } else {
+      state.paginationStartIndex = 0;
+    }
+    state.paginationAnchorId = currentAnchorId;
     renderCards();
+    scheduleAutoRowsRecalcAfterPageChange();
   });
 }
 
