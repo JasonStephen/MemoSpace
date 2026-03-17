@@ -115,30 +115,85 @@
     return { title: '', artist: '' };
   }
 
+  function uniqueJoin(values) {
+    const dedupe = new Set();
+    const out = [];
+    for (const value of values) {
+      const t = cleanText(value);
+      if (!t || dedupe.has(t)) continue;
+      dedupe.add(t);
+      out.push(t);
+    }
+    return out.join('/');
+  }
+
+  function extractSpotifyTitle(doc) {
+    return firstText(doc, [
+      '[data-testid="entityTitle"] h1',
+      'h1[data-encore-id="text"][dir="auto"]',
+      '[data-testid="context-item-info-title"] a',
+      '[data-testid="context-item-link"]',
+    ]);
+  }
+
+  function extractSpotifyArtists(doc) {
+    const artistValues = [];
+
+    // Full artist cards on track detail page.
+    doc
+      .querySelectorAll('[data-testid="track-artist-link-card-container"] a[href^="/artist/"]')
+      .forEach((a) => artistValues.push(a.textContent || ''));
+
+    // Sidebar / bottom now-playing blocks (can contain multiple artists).
+    doc
+      .querySelectorAll('[data-testid="context-item-info-artist"]')
+      .forEach((a) => artistValues.push(a.textContent || ''));
+
+    // Fallback: single creator link on header row.
+    doc
+      .querySelectorAll('[data-testid="creator-link"]')
+      .forEach((a) => artistValues.push(a.textContent || ''));
+
+    return uniqueJoin(artistValues);
+  }
+
   function parseSpotifyFromDocument(doc, href) {
     const ld = parseJsonLdMusic(doc);
     const ogTitle = cleanText(doc.querySelector('meta[property="og:title"]')?.content || '');
     const ogDesc = cleanText(doc.querySelector('meta[property="og:description"]')?.content || '');
     const ogImage = cleanText(doc.querySelector('meta[property="og:image"]')?.content || '');
+
+    const domTitle = extractSpotifyTitle(doc);
+    const domArtists = extractSpotifyArtists(doc);
+
     const by = ogDesc.match(/by\s+(.+)$/i);
     const descArtist = by ? splitArtists(by[1]) : '';
 
     return {
       provider: 'spotify',
       url: normalizeSpotifyUrl(href),
-      title: ld.title || ogTitle || '',
-      artist: ld.artist || descArtist || '',
+      title: domTitle || ld.title || ogTitle || '',
+      artist: domArtists || ld.artist || descArtist || '',
       icon_url: ogImage || '',
     };
   }
 
-  function parseNeteaseFromDocument(doc, href) {
-    const title = firstText(doc, [
+
+  function extractNeteaseTitle(doc) {
+    return firstText(doc, [
+      '.tit .f-ff2',
+      '.tit em.f-ff2',
       '.m-songInfo-song-name',
       'h2.m-songInfo-song-name',
+      '.j-flag.words a.name',
+      '.f-thide.name',
       '.tit',
       '.f-ff2',
     ]);
+  }
+
+  function parseNeteaseFromDocument(doc, href) {
+    const title = extractNeteaseTitle(doc);
     const artist = extractNeteaseArtist(doc);
     const icon =
       cleanText(doc.querySelector('.u-cover img[data-src]')?.getAttribute('data-src') || '') ||
@@ -164,27 +219,67 @@
       results.push(text);
     };
 
+    const splitAndPushArtists = (value) => {
+      cleanText(value)
+        .split('/')
+        .forEach(push);
+    };
+
+    // Song detail block:
+    // <p class="des s-fc4">???<span><a ...>A</a> / <a ...>B</a></span></p>
+    const singerRows = Array.from(doc.querySelectorAll('p.des.s-fc4, p.des, .m-info .des, .m-songInfo-des'))
+      .filter((row) => /歌\s*手\s*[:：]/.test(cleanText(row.textContent || '')));
+    for (const row of singerRows) {
+      const links = Array.from(row.querySelectorAll('a[href*="/artist"]'));
+      if (links.length) {
+        links.forEach((a) => push(a.textContent));
+      }
+      const titledSpan = row.querySelector('span[title]');
+      if (titledSpan) {
+        splitAndPushArtists(titledSpan.getAttribute('title') || '');
+      }
+      const raw = cleanText(row.textContent || '').replace(/^歌\s*手\s*[:：]\s*/i, '');
+      splitAndPushArtists(raw);
+    }
+    if (results.length) return results.join('/');
+
+    // Netease player bar "currently playing" block.
+    const playingWords = doc.querySelector('.j-flag.words');
+    if (playingWords) {
+      const links = Array.from(playingWords.querySelectorAll('.by a[href*="/artist"], a[href*="/artist"]'));
+      if (links.length) {
+        links.forEach((a) => push(a.textContent));
+      }
+      const titleSpan = playingWords.querySelector('.by span[title], span.by span[title]');
+      if (titleSpan) {
+        splitAndPushArtists(titleSpan.getAttribute('title') || '');
+      }
+      const byText = cleanText(playingWords.querySelector('.by')?.textContent || '');
+      splitAndPushArtists(byText);
+    }
+    if (results.length) return results.join('/');
+
     const artistHeader = doc.querySelector('.m-songInfo-artist');
     if (artistHeader) {
       const links = Array.from(artistHeader.querySelectorAll('a'));
       if (links.length) {
         links.forEach((a) => push(a.textContent));
       } else {
-        const raw = cleanText(artistHeader.textContent || '').replace(/^\u6b4c\s*\u624b[:\uFF1A]?\s*/i, '');
-        raw.split('/').forEach(push);
+        const raw = cleanText(artistHeader.textContent || '').replace(/^歌\s*手\s*[:：]?\s*/i, '');
+        splitAndPushArtists(raw);
       }
       if (results.length) return results.join('/');
     }
 
-    const singerRows = Array.from(doc.querySelectorAll('.m-info .des, .m-info p, .m-info div'))
-      .filter((row) => /^\u6b4c\s*\u624b[:\uFF1A]/.test(cleanText(row.textContent || '')));
-    for (const row of singerRows) {
+    const legacyRows = Array.from(doc.querySelectorAll('.m-info .des, .m-info p, .m-info div'))
+      .filter((row) => /^歌\s*手\s*[:：]/.test(cleanText(row.textContent || '')));
+    for (const row of legacyRows) {
       const links = Array.from(row.querySelectorAll('a'));
       if (links.length) {
         links.forEach((a) => push(a.textContent));
       } else {
-        const raw = cleanText(row.textContent || '').replace(/^\u6b4c\s*\u624b[:\uFF1A]\s*/, '');
-        raw.split('/').forEach(push);
+        const raw = cleanText(row.textContent || '').replace(/^歌\s*手\s*[:：]\s*/, '');
+        splitAndPushArtists(raw);
       }
     }
     if (results.length) return results.join('/');
