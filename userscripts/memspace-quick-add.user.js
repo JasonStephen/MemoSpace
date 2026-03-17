@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MemoSpace Quick Add (Netease/Spotify)
 // @namespace    memspace.local
-// @version      0.3.7
+// @version      0.3.13
 // @description  Add current/playing Netease/Spotify track to MemoSpace personal music quickly.
 // @match        https://music.163.com/*
 // @match        https://open.spotify.com/*
@@ -20,12 +20,18 @@
   const BTN_ID = 'memspace-quick-add-btn';
   const MODAL_ID = 'memspace-quick-add-modal';
   const BTN_POS_KEY = 'memspace_quick_add_btn_pos_v1';
+  let mountWatchStarted = false;
+    const COLOR_OPTIONS = [
+    '#7FB3D5', '#8ED1C6', '#F6B6C8', '#FFD166', '#87CEFA',
+    '#A3D977', '#FF5C8A', '#FF9F1C', '#6B7A8F', '#3DDC97',
+    '#E63946', '#48CAE4', '#6A4C93', '#6BAF45', '#B08968'
+  ];
 
   const style = document.createElement('style');
   style.textContent = `
     #${MODAL_ID}, #${MODAL_ID} * { box-sizing: border-box; }
     #${BTN_ID} {
-      position: fixed; right: 24px; bottom: 88px; z-index: 2147483646;
+      position: fixed !important; right: 24px; bottom: 88px; z-index: 2147483647 !important;
       border: 1px solid rgba(255,255,255,.18); border-radius: 999px;
       background: linear-gradient(135deg, #0a3a56 0%, #0f6b52 100%);
       color: #e8f6ff; font-weight: 700; font-size: 13px; letter-spacing: .2px;
@@ -34,12 +40,14 @@
     }
     #${BTN_ID}.dragging { cursor: grabbing; }
     #${MODAL_ID} {
-      position: fixed; inset: 0; z-index: 2147483647; display:none;
+      position: fixed !important; inset: 0; z-index: 2147483647 !important; display:none;
       pointer-events: none;
+      isolation: isolate;
     }
     #${MODAL_ID}.open { display:block; }
     #${MODAL_ID} .card {
-      position:absolute; width:360px; max-width:calc(100vw - 24px);
+      position:absolute !important; width:360px; max-width:calc(100vw - 24px);
+      z-index: 2147483647 !important;
       border-radius: 18px; border: 1px solid rgba(255,255,255,.18);
       background: linear-gradient(180deg, #162644 0%, #12223d 100%);
       color:#eef5ff; padding:14px; box-shadow:0 18px 36px rgba(0,0,0,.45);
@@ -66,7 +74,7 @@
       font-size: 14px; font-weight: 600; color:#c8d8f5;
       opacity:.95;
     }
-    #${MODAL_ID} textarea, #${MODAL_ID} input {
+    #${MODAL_ID} textarea, #${MODAL_ID} input, #${MODAL_ID} select {
       display:block; width:100%; max-width:100%;
       border-radius:10px; border:1px solid rgba(255,255,255,.16);
       background: rgba(9,18,34,.75); color:#eaf2ff; padding:8px 10px; outline:none;
@@ -93,6 +101,47 @@
       background: linear-gradient(135deg,#2a7cf6 0%,#1abf89 100%);
     }
     #${MODAL_ID} .source-toggle.is-playing .knob { left:27px; }
+    #${MODAL_ID} .color-grid {
+      display:grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap:8px;
+      margin-bottom:10px;
+    }
+    #${MODAL_ID} .color-swatch {
+      width:100%; aspect-ratio: 1 / 1;
+      border-radius:10px; border:1px solid rgba(255,255,255,.2);
+      cursor:pointer; padding:0;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
+    }
+    #${MODAL_ID} .color-swatch.active {
+      border:2px solid #ffffff;
+      box-shadow: 0 0 0 2px rgba(99,102,241,.35);
+    }
+    #${MODAL_ID} .color-custom {
+      display:grid; grid-template-columns: 52px 1fr auto; gap:10px;
+      align-items:center;
+      margin-bottom:10px;
+    }
+    #${MODAL_ID} .color-preview-box {
+      width:52px; height:38px; border-radius:8px;
+      border:1px solid rgba(255,255,255,.24);
+      background:#6d5efc;
+    }
+    #${MODAL_ID} #ms-color-hex {
+      text-transform: lowercase;
+      letter-spacing:.4px;
+    }
+    #${MODAL_ID} #ms-color-picker-btn {
+      padding:8px 12px;
+      border-radius:10px;
+    }
+    #${MODAL_ID} #ms-color-strip {
+      width:100%; height:14px; border-radius:999px;
+      background:#6d5efc;
+      border:1px solid rgba(255,255,255,.2);
+      margin-bottom:8px;
+    }
+    #${MODAL_ID} #ms-long-desc { min-height: 96px; }
     #${MODAL_ID} .actions { margin-top: 12px; display:flex; gap:8px; justify-content:flex-end; }
     #${MODAL_ID} button {
       border:1px solid rgba(255,255,255,.18); border-radius:999px;
@@ -175,6 +224,12 @@
     }
   }
 
+
+  function normalizeHexColor(value, fallback = '#6d5efc') {
+    const m = String(value || '').trim().toLowerCase().match(/^#?([0-9a-f]{6})$/i);
+    if (!m) return fallback;
+    return `#${m[1].toLowerCase()}`;
+  }
 
   function isSpotifyTrackPage(url) {
     return /open\.spotify\.com\/track\//i.test(String(url || ''));
@@ -644,7 +699,17 @@
           <div class="track-artist" id="ms-artist-text"></div>
           <div class="track-source" id="ms-source-text"></div>
         </div>
+        <label>Card Color</label>
+        <div class="color-grid" id="ms-color-grid"></div>
+        <div class="color-custom">
+          <div class="color-preview-box" id="ms-color-preview-box"></div>
+          <input id="ms-color-hex" value="#6d5efc" maxlength="7" />
+          <button id="ms-color-picker-btn" type="button">Pick</button>
+          <input id="ms-color-picker" type="color" value="#6d5efc" style="display:none" />
+        </div>
+        <div id="ms-color-strip"></div>
         <label>Short Description</label><textarea id="ms-desc"></textarea>
+        <label>Long Description</label><textarea id="ms-long-desc"></textarea>
         <label>Tags (comma)</label><input id="ms-tags" placeholder="piano, chill" />
         <div class="actions">
           <button id="ms-cancel">Cancel</button>
@@ -664,6 +729,52 @@
     const titleText = wrap.querySelector('#ms-title-text');
     const artistText = wrap.querySelector('#ms-artist-text');
     const sourceText = wrap.querySelector('#ms-source-text');
+
+    const colorGrid = wrap.querySelector('#ms-color-grid');
+    const colorHex = wrap.querySelector('#ms-color-hex');
+    const colorPreviewBox = wrap.querySelector('#ms-color-preview-box');
+    const colorStrip = wrap.querySelector('#ms-color-strip');
+    const colorPicker = wrap.querySelector('#ms-color-picker');
+    const colorPickerBtn = wrap.querySelector('#ms-color-picker-btn');
+    let selectedColor = COLOR_OPTIONS[0];
+
+    const renderPalette = () => {
+      if (!colorGrid) return;
+      colorGrid.innerHTML = COLOR_OPTIONS.map((hex) => {
+        const active = hex === selectedColor ? ' active' : '';
+        return `<button type="button" class="color-swatch${active}" data-color="${hex}" style="background:${hex}" title="${hex}"></button>`;
+      }).join('');
+    };
+
+    const applySelectedColor = (value) => {
+      selectedColor = normalizeHexColor(value, selectedColor);
+      if (colorHex) colorHex.value = selectedColor;
+      if (colorPreviewBox) colorPreviewBox.style.background = selectedColor;
+      if (colorStrip) colorStrip.style.background = selectedColor;
+      if (colorPicker) colorPicker.value = selectedColor;
+      renderPalette();
+    };
+
+    renderPalette();
+    applySelectedColor(selectedColor);
+
+    colorGrid?.addEventListener('click', (e) => {
+      const btn = e.target?.closest?.('.color-swatch');
+      if (!btn) return;
+      applySelectedColor(btn.dataset.color || selectedColor);
+    });
+
+    colorHex?.addEventListener('change', () => {
+      applySelectedColor(colorHex.value || selectedColor);
+    });
+
+    colorPickerBtn?.addEventListener('click', () => {
+      colorPicker?.click();
+    });
+
+    colorPicker?.addEventListener('input', () => {
+      applySelectedColor(colorPicker.value || selectedColor);
+    });
 
     let usePlaying = defaultMode === 'playing';
     let selectedTrack = usePlaying ? sources.playing : sources.current;
@@ -704,6 +815,7 @@
       }
 
       const shortDesc = wrap.querySelector('#ms-desc')?.value?.trim() || '';
+      const longDesc = wrap.querySelector('#ms-long-desc')?.value?.trim() || '';
       const tags = (wrap.querySelector('#ms-tags')?.value || '')
         .split(',')
         .map((x) => x.trim())
@@ -715,9 +827,9 @@
         artist,
         memory_time: nowTimeString(),
         tags,
-        color: '#6d5efc',
+        color: selectedColor,
         short_desc: shortDesc,
-        long_desc: '',
+        long_desc: longDesc,
         links: [{ provider: selectedTrack?.provider || '', url: selectedTrack?.url || window.location.href }],
       };
 
@@ -882,7 +994,54 @@
     });
   }
 
-  window.addEventListener('load', () => {
-    setTimeout(mountButton, 600);
-  });
+  function startMountWatch() {
+    if (mountWatchStarted) return;
+    mountWatchStarted = true;
+
+    let retries = 0;
+    const maxRetries = 30;
+
+    const tryMount = () => {
+      mountButton();
+      return !!document.getElementById(BTN_ID);
+    };
+
+    const remountSoon = () => {
+      setTimeout(tryMount, 50);
+      setTimeout(tryMount, 200);
+      setTimeout(tryMount, 800);
+    };
+
+    tryMount();
+    setTimeout(tryMount, 300);
+    setTimeout(tryMount, 800);
+    setTimeout(tryMount, 1500);
+
+    const timer = setInterval(() => {
+      if (tryMount()) {
+        clearInterval(timer);
+        return;
+      }
+      retries += 1;
+      if (retries >= maxRetries) clearInterval(timer);
+    }, 1000);
+
+    window.addEventListener('hashchange', () => setTimeout(tryMount, 120));
+    window.addEventListener('popstate', () => setTimeout(tryMount, 120));
+
+    // Recover after external-app prompt returns focus.
+    window.addEventListener('focus', remountSoon);
+    window.addEventListener('pageshow', remountSoon);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) remountSoon();
+    });
+
+    const mo = new MutationObserver(() => {
+      if (!document.getElementById(BTN_ID)) tryMount();
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  window.addEventListener('DOMContentLoaded', startMountWatch);
+  window.addEventListener('load', startMountWatch);
 })();
