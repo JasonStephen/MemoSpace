@@ -1,13 +1,14 @@
-﻿// ==UserScript==
+// ==UserScript==
 // @name         MemoSpace Quick Add (Netease/Spotify)
 // @namespace    memspace.local
-// @version      0.2.0
-// @description  Add current Netease/Spotify track to MemoSpace personal music quickly.
+// @version      0.3.7
+// @description  Add current/playing Netease/Spotify track to MemoSpace personal music quickly.
 // @match        https://music.163.com/*
-// @match        https://open.spotify.com/track/*
+// @match        https://open.spotify.com/*
 // @grant        GM_xmlhttpRequest
 // @connect      127.0.0.1
 // @connect      localhost
+// @noframes
 // ==/UserScript==
 
 (function () {
@@ -18,36 +19,80 @@
   const PAGE_URL = `${API_BASE}/music/personal`;
   const BTN_ID = 'memspace-quick-add-btn';
   const MODAL_ID = 'memspace-quick-add-modal';
+  const BTN_POS_KEY = 'memspace_quick_add_btn_pos_v1';
 
   const style = document.createElement('style');
   style.textContent = `
     #${MODAL_ID}, #${MODAL_ID} * { box-sizing: border-box; }
     #${BTN_ID} {
-      position: fixed; right: 24px; bottom: 24px; z-index: 2147483646;
+      position: fixed; right: 24px; bottom: 88px; z-index: 2147483646;
       border: 1px solid rgba(255,255,255,.18); border-radius: 999px;
       background: linear-gradient(135deg, #0a3a56 0%, #0f6b52 100%);
       color: #e8f6ff; font-weight: 700; font-size: 13px; letter-spacing: .2px;
-      padding: 10px 14px; cursor: pointer; box-shadow: 0 10px 24px rgba(0,0,0,.35);
+      padding: 10px 14px; cursor: grab; user-select:none;
+      box-shadow: 0 10px 24px rgba(0,0,0,.35);
     }
-    #${MODAL_ID} { position: fixed; inset: 0; z-index: 2147483647; display:none; }
+    #${BTN_ID}.dragging { cursor: grabbing; }
+    #${MODAL_ID} {
+      position: fixed; inset: 0; z-index: 2147483647; display:none;
+      pointer-events: none;
+    }
     #${MODAL_ID}.open { display:block; }
-    #${MODAL_ID} .mask { position:absolute; inset:0; background:rgba(0,0,0,.45); }
     #${MODAL_ID} .card {
-      position:absolute; right:24px; bottom:74px; width:360px; max-width:calc(100vw - 24px);
+      position:absolute; width:360px; max-width:calc(100vw - 24px);
       border-radius: 18px; border: 1px solid rgba(255,255,255,.18);
       background: linear-gradient(180deg, #162644 0%, #12223d 100%);
       color:#eef5ff; padding:14px; box-shadow:0 18px 36px rgba(0,0,0,.45);
       font-family: "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+      pointer-events:auto;
+      opacity:0; transform: scale(0.88);
+      transition: opacity .22s ease, transform .22s ease;
     }
+    #${MODAL_ID} .card.animate-in { opacity:1; transform: scale(1); }
     #${MODAL_ID} .title { font-weight:700; margin: 0 0 10px; }
     #${MODAL_ID} label { display:block; font-size:12px; color:#b5c1d8; margin:8px 0 4px; }
-    #${MODAL_ID} input, #${MODAL_ID} textarea {
-      display:block;
-      width:100%; border-radius:10px; border:1px solid rgba(255,255,255,.16);
-      background: rgba(9,18,34,.75); color:#eaf2ff; padding:8px 10px; outline:none;
-      max-width:100%;
+    #${MODAL_ID} .track-summary { margin: 8px 0 10px; }
+    #${MODAL_ID} .track-title {
+      font-size: 24px; line-height: 1.08; font-weight: 800;
+      letter-spacing: .2px; color:#f3f8ff; word-break: break-word;
+      margin: 4px 0 8px;
     }
-    #${MODAL_ID} textarea { min-height: 72px; resize: vertical; }
+    #${MODAL_ID} .track-artist {
+      font-size: 18px; line-height: 1.1; font-weight: 700;
+      color:#dce9ff; word-break: break-word;
+      margin: 0 0 8px;
+    }
+    #${MODAL_ID} .track-source {
+      font-size: 14px; font-weight: 600; color:#c8d8f5;
+      opacity:.95;
+    }
+    #${MODAL_ID} textarea, #${MODAL_ID} input {
+      display:block; width:100%; max-width:100%;
+      border-radius:10px; border:1px solid rgba(255,255,255,.16);
+      background: rgba(9,18,34,.75); color:#eaf2ff; padding:8px 10px; outline:none;
+    }
+    #${MODAL_ID} textarea { min-height: 72px; resize: none; }
+    #${MODAL_ID} .header-row {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px; margin-bottom: 8px;
+    }
+    #${MODAL_ID} .header-row .title { margin: 0; }
+    #${MODAL_ID} .source-toggle {
+      width:52px; height:30px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.24);
+      background: rgba(9,18,34,.88);
+      position:relative; cursor:pointer;
+      padding:0; flex:0 0 auto;
+    }
+    #${MODAL_ID} .source-toggle .knob {
+      position:absolute; top:3px; left:3px;
+      width:22px; height:22px; border-radius:50%;
+      background:#dbe6ff; transition:left .2s ease;
+    }
+    #${MODAL_ID} .source-toggle.is-playing {
+      background: linear-gradient(135deg,#2a7cf6 0%,#1abf89 100%);
+    }
+    #${MODAL_ID} .source-toggle.is-playing .knob { left:27px; }
     #${MODAL_ID} .actions { margin-top: 12px; display:flex; gap:8px; justify-content:flex-end; }
     #${MODAL_ID} button {
       border:1px solid rgba(255,255,255,.18); border-radius:999px;
@@ -64,6 +109,18 @@
 
   function splitArtists(value) {
     return cleanText(value).replace(/,\s*/g, '/');
+  }
+
+  function uniqueJoin(values) {
+    const dedupe = new Set();
+    const out = [];
+    for (const value of values) {
+      const t = cleanText(value);
+      if (!t || dedupe.has(t)) continue;
+      dedupe.add(t);
+      out.push(t);
+    }
+    return out.join('/');
   }
 
   function normalizeNeteaseUrl(raw) {
@@ -84,6 +141,47 @@
       if (value) return value;
     }
     return '';
+  }
+
+  function firstAttr(doc, selectors, attr) {
+    for (const sel of selectors) {
+      const value = cleanText(doc.querySelector(sel)?.getAttribute(attr) || '');
+      if (value) return value;
+    }
+    return '';
+  }
+
+  function getTopDocumentSafe() {
+    try {
+      if (window.top && window.top.document) return window.top.document;
+    } catch (_) {}
+    return null;
+  }
+
+  function getTopHrefSafe() {
+    try {
+      if (window.top && window.top.location) return String(window.top.location.href || '');
+    } catch (_) {}
+    return '';
+  }
+
+  function toAbsoluteUrl(raw, baseHref) {
+    const value = cleanText(raw);
+    if (!value) return '';
+    try {
+      return new URL(value, baseHref || window.location.href).toString();
+    } catch (_) {
+      return value;
+    }
+  }
+
+
+  function isSpotifyTrackPage(url) {
+    return /open\.spotify\.com\/track\//i.test(String(url || ''));
+  }
+
+  function isNeteaseSongPage(url) {
+    return /music\.163\.com\/(?:#\/)?song\?id=|music\.163\.com\/m\/song\?id=/i.test(String(url || ''));
   }
 
   function parseJsonLdMusic(doc) {
@@ -115,69 +213,72 @@
     return { title: '', artist: '' };
   }
 
-  function uniqueJoin(values) {
-    const dedupe = new Set();
-    const out = [];
-    for (const value of values) {
-      const t = cleanText(value);
-      if (!t || dedupe.has(t)) continue;
-      dedupe.add(t);
-      out.push(t);
-    }
-    return out.join('/');
-  }
-
-  function extractSpotifyTitle(doc) {
+  function extractSpotifyCurrentTitle(doc) {
     return firstText(doc, [
       '[data-testid="entityTitle"] h1',
       'h1[data-encore-id="text"][dir="auto"]',
+    ]);
+  }
+
+  function extractSpotifyCurrentArtists(doc) {
+    const values = [];
+    doc.querySelectorAll('[data-testid="track-artist-link-card-container"] a[href^="/artist/"]')
+      .forEach((a) => values.push(a.textContent || ''));
+    doc.querySelectorAll('[data-testid="creator-link"]')
+      .forEach((a) => values.push(a.textContent || ''));
+    return uniqueJoin(values);
+  }
+
+  function extractSpotifyPlayingTitle(doc) {
+    return firstText(doc, [
       '[data-testid="context-item-info-title"] a',
       '[data-testid="context-item-link"]',
     ]);
   }
 
-  function extractSpotifyArtists(doc) {
-    const artistValues = [];
-
-    // Full artist cards on track detail page.
-    doc
-      .querySelectorAll('[data-testid="track-artist-link-card-container"] a[href^="/artist/"]')
-      .forEach((a) => artistValues.push(a.textContent || ''));
-
-    // Sidebar / bottom now-playing blocks (can contain multiple artists).
-    doc
-      .querySelectorAll('[data-testid="context-item-info-artist"]')
-      .forEach((a) => artistValues.push(a.textContent || ''));
-
-    // Fallback: single creator link on header row.
-    doc
-      .querySelectorAll('[data-testid="creator-link"]')
-      .forEach((a) => artistValues.push(a.textContent || ''));
-
-    return uniqueJoin(artistValues);
+  function extractSpotifyPlayingArtists(doc) {
+    const values = [];
+    doc.querySelectorAll('[data-testid="context-item-info-artist"]')
+      .forEach((a) => values.push(a.textContent || ''));
+    return uniqueJoin(values);
   }
 
-  function parseSpotifyFromDocument(doc, href) {
+  function parseSpotifyCurrent(doc, href) {
     const ld = parseJsonLdMusic(doc);
     const ogTitle = cleanText(doc.querySelector('meta[property="og:title"]')?.content || '');
     const ogDesc = cleanText(doc.querySelector('meta[property="og:description"]')?.content || '');
     const ogImage = cleanText(doc.querySelector('meta[property="og:image"]')?.content || '');
-
-    const domTitle = extractSpotifyTitle(doc);
-    const domArtists = extractSpotifyArtists(doc);
-
     const by = ogDesc.match(/by\s+(.+)$/i);
     const descArtist = by ? splitArtists(by[1]) : '';
+
+    const title = extractSpotifyCurrentTitle(doc) || ld.title || ogTitle || '';
+    const artist = extractSpotifyCurrentArtists(doc) || ld.artist || descArtist || '';
 
     return {
       provider: 'spotify',
       url: normalizeSpotifyUrl(href),
-      title: domTitle || ld.title || ogTitle || '',
-      artist: domArtists || ld.artist || descArtist || '',
+      title,
+      artist,
       icon_url: ogImage || '',
     };
   }
 
+  function parseSpotifyPlaying(doc, href) {
+    const title = extractSpotifyPlayingTitle(doc);
+    const artist = extractSpotifyPlayingArtists(doc);
+    const icon = firstAttr(doc, [
+      '[data-testid="cover-art-image"] img',
+      '[data-testid="cover-art-image"]',
+      'img[alt][src*="i.scdn.co/image/"]',
+    ], 'src');
+    return {
+      provider: 'spotify',
+      url: normalizeSpotifyUrl(href),
+      title,
+      artist,
+      icon_url: icon || '',
+    };
+  }
 
   function extractNeteaseTitle(doc) {
     return firstText(doc, [
@@ -185,113 +286,116 @@
       '.tit em.f-ff2',
       '.m-songInfo-song-name',
       'h2.m-songInfo-song-name',
-      '.j-flag.words a.name',
-      '.f-thide.name',
-      '.tit',
-      '.f-ff2',
     ]);
   }
 
-  function parseNeteaseFromDocument(doc, href) {
-    const title = extractNeteaseTitle(doc);
-    const artist = extractNeteaseArtist(doc);
-    const icon =
-      cleanText(doc.querySelector('.u-cover img[data-src]')?.getAttribute('data-src') || '') ||
-      cleanText(doc.querySelector('.u-cover img[src]')?.getAttribute('src') || '') ||
-      cleanText(doc.querySelector('meta[property="og:image"]')?.content || '');
-
-    return {
-      provider: 'netease_music',
-      url: normalizeNeteaseUrl(href),
-      title: title || '',
-      artist: artist || '',
-      icon_url: icon || '',
-    };
+  function extractNeteasePlayingTitle(doc) {
+    return firstText(doc, [
+      '.j-flag.words a.name',
+      '.m-playbar .words a.name',
+      '.m-playbar .words .name',
+      '.words a.name',
+      '.f-thide.name',
+    ]);
   }
 
-  function extractNeteaseArtist(doc) {
-    const dedupe = new Set();
-    const results = [];
+  function extractNeteaseArtistFromDetail(doc) {
+    const values = [];
     const push = (value) => {
-      const text = cleanText(value);
-      if (!text || dedupe.has(text)) return;
-      dedupe.add(text);
-      results.push(text);
+      const t = cleanText(value);
+      if (t) values.push(t);
     };
+    const splitAndPush = (value) => cleanText(value).split('/').forEach(push);
 
-    const splitAndPushArtists = (value) => {
-      cleanText(value)
-        .split('/')
-        .forEach(push);
-    };
-
-    // Song detail block:
-    // <p class="des s-fc4">???<span><a ...>A</a> / <a ...>B</a></span></p>
     const singerRows = Array.from(doc.querySelectorAll('p.des.s-fc4, p.des, .m-info .des, .m-songInfo-des'))
-      .filter((row) => /歌\s*手\s*[:：]/.test(cleanText(row.textContent || '')));
+      .filter((row) => /\u6b4c\s*\u624b\s*[:\uFF1A]/.test(cleanText(row.textContent || '')));
+
     for (const row of singerRows) {
-      const links = Array.from(row.querySelectorAll('a[href*="/artist"]'));
-      if (links.length) {
-        links.forEach((a) => push(a.textContent));
-      }
+      row.querySelectorAll('a[href*="/artist"]').forEach((a) => push(a.textContent));
       const titledSpan = row.querySelector('span[title]');
-      if (titledSpan) {
-        splitAndPushArtists(titledSpan.getAttribute('title') || '');
-      }
-      const raw = cleanText(row.textContent || '').replace(/^歌\s*手\s*[:：]\s*/i, '');
-      splitAndPushArtists(raw);
-    }
-    if (results.length) return results.join('/');
-
-    // Netease player bar "currently playing" block.
-    const playingWords = doc.querySelector('.j-flag.words');
-    if (playingWords) {
-      const links = Array.from(playingWords.querySelectorAll('.by a[href*="/artist"], a[href*="/artist"]'));
-      if (links.length) {
-        links.forEach((a) => push(a.textContent));
-      }
-      const titleSpan = playingWords.querySelector('.by span[title], span.by span[title]');
-      if (titleSpan) {
-        splitAndPushArtists(titleSpan.getAttribute('title') || '');
-      }
-      const byText = cleanText(playingWords.querySelector('.by')?.textContent || '');
-      splitAndPushArtists(byText);
-    }
-    if (results.length) return results.join('/');
-
-    const artistHeader = doc.querySelector('.m-songInfo-artist');
-    if (artistHeader) {
-      const links = Array.from(artistHeader.querySelectorAll('a'));
-      if (links.length) {
-        links.forEach((a) => push(a.textContent));
-      } else {
-        const raw = cleanText(artistHeader.textContent || '').replace(/^歌\s*手\s*[:：]?\s*/i, '');
-        splitAndPushArtists(raw);
-      }
-      if (results.length) return results.join('/');
+      if (titledSpan) splitAndPush(titledSpan.getAttribute('title') || '');
+      const raw = cleanText(row.textContent || '').replace(/^\u6b4c\s*\u624b\s*[:\uFF1A]\s*/i, '');
+      splitAndPush(raw);
     }
 
-    const legacyRows = Array.from(doc.querySelectorAll('.m-info .des, .m-info p, .m-info div'))
-      .filter((row) => /^歌\s*手\s*[:：]/.test(cleanText(row.textContent || '')));
-    for (const row of legacyRows) {
-      const links = Array.from(row.querySelectorAll('a'));
-      if (links.length) {
-        links.forEach((a) => push(a.textContent));
-      } else {
-        const raw = cleanText(row.textContent || '').replace(/^歌\s*手\s*[:：]\s*/, '');
-        splitAndPushArtists(raw);
-      }
-    }
-    if (results.length) return results.join('/');
-
-    return firstText(doc, [
+    const fallback = firstText(doc, [
       '.m-songInfo-artist',
       'h2.m-songInfo-artist',
       '.m-info .des a',
       '.m-songInfo-des a',
     ]);
+    if (fallback) values.push(fallback);
+
+    return uniqueJoin(values);
   }
 
+  function extractNeteasePlayingArtists(doc) {
+    const values = [];
+    const push = (value) => {
+      const t = cleanText(value);
+      if (t) values.push(t);
+    };
+    const splitAndPush = (value) => cleanText(value).split('/').forEach(push);
+
+    const playingWords = doc.querySelector('.j-flag.words');
+    if (playingWords) {
+      playingWords.querySelectorAll('.by a[href*="/artist"], a[href*="/artist"]').forEach((a) => push(a.textContent));
+      const titleSpan = playingWords.querySelector('.by span[title], span.by span[title]');
+      if (titleSpan) splitAndPush(titleSpan.getAttribute('title') || '');
+      splitAndPush(cleanText(playingWords.querySelector('.by')?.textContent || ''));
+    }
+    return uniqueJoin(values);
+  }
+
+  function parseNeteaseCurrent(doc, href) {
+    const title = extractNeteaseTitle(doc);
+    const artist = extractNeteaseArtistFromDetail(doc);
+    const icon =
+      firstAttr(doc, ['.u-cover img[data-src]'], 'data-src') ||
+      firstAttr(doc, ['.u-cover img[src]'], 'src') ||
+      cleanText(doc.querySelector('meta[property="og:image"]')?.content || '');
+
+    return {
+      provider: 'netease_music',
+      url: normalizeNeteaseUrl(href),
+      title,
+      artist,
+      icon_url: icon || '',
+    };
+  }
+
+  function parseNeteasePlaying(doc, href) {
+    if (!doc) {
+      return {
+        provider: 'netease_music',
+        url: normalizeNeteaseUrl(href),
+        title: '',
+        artist: '',
+        icon_url: '',
+      };
+    }
+
+    const title = extractNeteasePlayingTitle(doc);
+    const artist = extractNeteasePlayingArtists(doc);
+    const icon =
+      firstAttr(doc, ['.m-playbar .head img[data-src]', '.play .head img[data-src]'], 'data-src') ||
+      firstAttr(doc, ['.m-playbar .head img', '.play .head img'], 'src');
+
+    const rawUrl = firstAttr(doc, [
+      '.j-flag.words a.name[href*="/song"]',
+      '.m-playbar .words a.name[href*="/song"]',
+      '.words a.name[href*="/song"]',
+    ], 'href');
+    const absolute = toAbsoluteUrl(rawUrl, href);
+
+    return {
+      provider: 'netease_music',
+      url: normalizeNeteaseUrl(absolute || href),
+      title,
+      artist,
+      icon_url: icon || '',
+    };
+  }
 
   function mergeTrack(primary, secondary) {
     if (!secondary) return primary;
@@ -302,6 +406,10 @@
       artist: primary.artist || secondary.artist || '',
       icon_url: primary.icon_url || secondary.icon_url || '',
     };
+  }
+
+  function hasTrackInfo(track) {
+    return !!(track && (cleanText(track.title) || cleanText(track.artist)));
   }
 
   function gmRequest(method, url, payload) {
@@ -331,33 +439,60 @@
     }
   }
 
-  async function getTrackInfo() {
+  function getNeteaseDetailDoc() {
+    const iframe = document.querySelector('#g_iframe');
+    return iframe?.contentDocument || null;
+  }
+
+  async function getTrackSources() {
     const href = window.location.href;
     const host = window.location.hostname;
 
     if (host.includes('spotify.com')) {
-      let track = parseSpotifyFromDocument(document, href);
-      if (!track.title || !track.artist || !track.icon_url) {
-        const htmlDoc = await fetchHtmlDocument(href);
-        if (htmlDoc) track = mergeTrack(track, parseSpotifyFromDocument(htmlDoc, href));
+      let current = null;
+      let playing = parseSpotifyPlaying(document, href);
+
+      if (isSpotifyTrackPage(href)) {
+        current = parseSpotifyCurrent(document, href);
+        if (!hasTrackInfo(current)) {
+          const htmlDoc = await fetchHtmlDocument(href);
+          if (htmlDoc) current = mergeTrack(current, parseSpotifyCurrent(htmlDoc, href));
+        }
       }
-      return track;
+
+      return {
+        current: hasTrackInfo(current) ? current : null,
+        playing: hasTrackInfo(playing) ? playing : null,
+      };
     }
 
     if (host.includes('music.163.com')) {
-      let track = parseNeteaseFromDocument(document, href);
-      const iframe = document.querySelector('#g_iframe');
-      const iframeDoc = iframe?.contentDocument || null;
-      if (iframeDoc) track = mergeTrack(track, parseNeteaseFromDocument(iframeDoc, href));
+      const detailDoc = getNeteaseDetailDoc();
+      const effectiveDetailDoc = detailDoc || document;
+      const topDoc = getTopDocumentSafe();
+      const topHref = getTopHrefSafe() || href;
 
-      if (!track.title || !track.artist || !track.icon_url) {
-        const htmlDoc = await fetchHtmlDocument(normalizeNeteaseUrl(href));
-        if (htmlDoc) track = mergeTrack(track, parseNeteaseFromDocument(htmlDoc, href));
+      let current = null;
+      let playing = parseNeteasePlaying(document, href);
+      if (topDoc && topDoc !== document) {
+        playing = mergeTrack(playing, parseNeteasePlaying(topDoc, topHref));
       }
-      return track;
+
+      if (isNeteaseSongPage(href) || !!detailDoc) {
+        current = parseNeteaseCurrent(effectiveDetailDoc, href);
+        if (!hasTrackInfo(current)) {
+          const htmlDoc = await fetchHtmlDocument(normalizeNeteaseUrl(href));
+          if (htmlDoc) current = mergeTrack(current, parseNeteaseCurrent(htmlDoc, href));
+        }
+      }
+
+      return {
+        current: hasTrackInfo(current) ? current : null,
+        playing: hasTrackInfo(playing) ? playing : null,
+      };
     }
 
-    return null;
+    return { current: null, playing: null };
   }
 
   function nowTimeString() {
@@ -366,18 +501,149 @@
     return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
-  function openModal(track) {
+  function positionModalNearButton(wrap) {
+    const card = wrap.querySelector('.card');
+    const btn = document.getElementById(BTN_ID);
+    if (!card || !btn) return;
+
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const b = btn.getBoundingClientRect();
+    const gap = 12;
+
+    // measure size first
+    card.style.left = '0px';
+    card.style.top = '0px';
+    card.style.right = 'auto';
+    card.style.bottom = 'auto';
+
+    const cardW = card.offsetWidth;
+    const cardH = card.offsetHeight;
+
+    const onLeft = b.left + b.width / 2 < viewportW / 2;
+    const onTop = b.top + b.height / 2 < viewportH / 2;
+
+    let left = onLeft ? b.left : b.right - cardW;
+    let top = onTop ? b.bottom + gap : b.top - cardH - gap;
+
+    left = Math.max(8, Math.min(viewportW - cardW - 8, left));
+    top = Math.max(8, Math.min(viewportH - cardH - 8, top));
+
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    card.style.transformOrigin = `${onLeft ? '0%' : '100%'} ${onTop ? '0%' : '100%'}`;
+
+    requestAnimationFrame(() => {
+      card.classList.add('animate-in');
+    });
+  }
+
+
+  function saveModalPosition(card) {
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const maxLeft = Math.max(1, window.innerWidth - card.offsetWidth - 16);
+    const maxTop = Math.max(1, window.innerHeight - card.offsetHeight - 16);
+    const left = Math.min(maxLeft, Math.max(0, rect.left - 8));
+    const top = Math.min(maxTop, Math.max(0, rect.top - 8));
+    card.dataset.xPct = String(Math.min(1, Math.max(0, left / maxLeft)));
+    card.dataset.yPct = String(Math.min(1, Math.max(0, top / maxTop)));
+  }
+
+  function applyModalPosition(card) {
+    if (!card) return;
+    const xPct = Number(card.dataset.xPct);
+    const yPct = Number(card.dataset.yPct);
+    if (!Number.isFinite(xPct) || !Number.isFinite(yPct)) return;
+
+    const maxLeft = Math.max(0, window.innerWidth - card.offsetWidth - 16);
+    const maxTop = Math.max(0, window.innerHeight - card.offsetHeight - 16);
+    const left = 8 + Math.min(maxLeft, Math.max(0, Math.round(maxLeft * xPct)));
+    const top = 8 + Math.min(maxTop, Math.max(0, Math.round(maxTop * yPct)));
+
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    card.style.right = 'auto';
+    card.style.bottom = 'auto';
+  }
+
+
+  function enableModalDrag(wrap) {
+    const card = wrap.querySelector('.card');
+    const handle = wrap.querySelector('.header-row');
+    if (!card || !handle) return;
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    handle.addEventListener('mousedown', (e) => {
+      const target = e.target;
+      if (target && target.closest && target.closest('button, input, textarea, select, a')) return;
+      dragging = true;
+      const rect = card.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const maxLeft = Math.max(8, window.innerWidth - card.offsetWidth - 8);
+      const maxTop = Math.max(8, window.innerHeight - card.offsetHeight - 8);
+      const left = Math.min(maxLeft, Math.max(8, e.clientX - offsetX));
+      const top = Math.min(maxTop, Math.max(8, e.clientY - offsetY));
+      card.style.left = `${left}px`;
+      card.style.top = `${top}px`;
+      card.style.right = 'auto';
+      card.style.bottom = 'auto';
+      saveModalPosition(card);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      saveModalPosition(card);
+    });
+
+    window.addEventListener('resize', () => {
+      applyModalPosition(card);
+      saveModalPosition(card);
+    });
+  }
+
+  function openModal(sources) {
     const old = document.getElementById(MODAL_ID);
     if (old) old.remove();
+
+    const hasCurrent = !!sources.current;
+    const hasPlaying = !!sources.playing;
+    const defaultMode = hasCurrent ? 'current' : 'playing';
+
+    if (!hasCurrent && !hasPlaying) {
+      alert('No track info detected.');
+      return;
+    }
+
+    const btn = document.getElementById(BTN_ID);
+    if (btn) btn.style.visibility = 'hidden';
+
     const wrap = document.createElement('div');
     wrap.id = MODAL_ID;
     wrap.className = 'open';
     wrap.innerHTML = `
-      <div class="mask"></div>
       <div class="card">
-        <p class="title">Add To Music MemoSpace</p>
-        <label>Music Name</label><input id="ms-title" value="${escapeHtml(track.title || '')}" />
-        <label>Artist</label><input id="ms-artist" value="${escapeHtml(track.artist || '')}" />
+        <div class="header-row">
+          <p class="title">Add To Music MemoSpace</p>
+          <button id="ms-source-toggle" class="source-toggle" type="button" aria-label="Switch source" aria-checked="false" role="switch">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <div class="track-summary">
+          <div class="track-title" id="ms-title-text"></div>
+          <div class="track-artist" id="ms-artist-text"></div>
+          <div class="track-source" id="ms-source-text"></div>
+        </div>
         <label>Short Description</label><textarea id="ms-desc"></textarea>
         <label>Tags (comma)</label><input id="ms-tags" placeholder="piano, chill" />
         <div class="actions">
@@ -389,15 +655,54 @@
       </div>
     `;
     document.body.appendChild(wrap);
+    positionModalNearButton(wrap);
+    const card = wrap.querySelector('.card');
+    saveModalPosition(card);
+    enableModalDrag(wrap);
 
-    const close = () => wrap.remove();
-    wrap.querySelector('.mask')?.addEventListener('click', close);
+    const sourceToggle = wrap.querySelector('#ms-source-toggle');
+    const titleText = wrap.querySelector('#ms-title-text');
+    const artistText = wrap.querySelector('#ms-artist-text');
+    const sourceText = wrap.querySelector('#ms-source-text');
+
+    let usePlaying = defaultMode === 'playing';
+    let selectedTrack = usePlaying ? sources.playing : sources.current;
+
+    const updateSelectedTrack = () => {
+      selectedTrack = usePlaying ? sources.playing : sources.current;
+      titleText.textContent = selectedTrack?.title || '(Unknown Title)';
+      artistText.textContent = selectedTrack?.artist || '(Unknown Artist)';
+      sourceText.textContent = usePlaying ? 'Now Playing Track' : 'Current Page Track';
+      sourceToggle.classList.toggle('is-playing', usePlaying);
+      sourceToggle.setAttribute('aria-checked', usePlaying ? 'true' : 'false');
+      const cannotToggle = !sources.current || !sources.playing;
+      sourceToggle.disabled = cannotToggle;
+      sourceToggle.style.opacity = cannotToggle ? '0.6' : '1';
+      sourceToggle.title = cannotToggle ? 'Only one source available' : (usePlaying ? 'Now Playing Track' : 'Current Page Track');
+    };
+
+    updateSelectedTrack();
+    sourceToggle.addEventListener('click', () => {
+      if (!sources.current || !sources.playing) return;
+      usePlaying = !usePlaying;
+      updateSelectedTrack();
+    });
+
+    const close = () => {
+      wrap.remove();
+      if (btn) btn.style.visibility = 'visible';
+    };
     wrap.querySelector('#ms-cancel')?.addEventListener('click', close);
     wrap.querySelector('#ms-open')?.addEventListener('click', () => window.open(PAGE_URL, '_blank'));
 
     wrap.querySelector('#ms-submit')?.addEventListener('click', async () => {
-      const title = wrap.querySelector('#ms-title')?.value?.trim() || '';
-      const artist = wrap.querySelector('#ms-artist')?.value?.trim() || '';
+      const title = cleanText(selectedTrack?.title || '');
+      const artist = cleanText(selectedTrack?.artist || '');
+      if (!title && !artist) {
+        alert('Track info is empty. Try switching source.');
+        return;
+      }
+
       const shortDesc = wrap.querySelector('#ms-desc')?.value?.trim() || '';
       const tags = (wrap.querySelector('#ms-tags')?.value || '')
         .split(',')
@@ -405,7 +710,7 @@
         .filter(Boolean);
 
       const payload = {
-        icon_url: track.icon_url || '',
+        icon_url: selectedTrack?.icon_url || '',
         title,
         artist,
         memory_time: nowTimeString(),
@@ -413,7 +718,7 @@
         color: '#6d5efc',
         short_desc: shortDesc,
         long_desc: '',
-        links: [{ provider: track.provider, url: track.url }],
+        links: [{ provider: selectedTrack?.provider || '', url: selectedTrack?.url || window.location.href }],
       };
 
       try {
@@ -434,29 +739,147 @@
     });
   }
 
-  function escapeHtml(s) {
-    return String(s || '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
+
+  function loadButtonPosition() {
+    try {
+      const raw = localStorage.getItem(BTN_POS_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (typeof obj?.xPct !== 'number' || typeof obj?.yPct !== 'number') return null;
+      return {
+        xPct: Math.min(1, Math.max(0, obj.xPct)),
+        yPct: Math.min(1, Math.max(0, obj.yPct)),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveButtonPosition(btn, left, top) {
+    try {
+      const maxLeft = Math.max(1, window.innerWidth - btn.offsetWidth);
+      const maxTop = Math.max(1, window.innerHeight - btn.offsetHeight);
+      const xPct = Math.min(1, Math.max(0, left / maxLeft));
+      const yPct = Math.min(1, Math.max(0, top / maxTop));
+      localStorage.setItem(BTN_POS_KEY, JSON.stringify({ xPct, yPct }));
+    } catch (_) {}
+  }
+
+  function applyButtonPosition(btn, pos) {
+    if (!pos) return;
+    const maxLeft = Math.max(0, window.innerWidth - btn.offsetWidth);
+    const maxTop = Math.max(0, window.innerHeight - btn.offsetHeight);
+    const left = Math.min(maxLeft, Math.max(0, Math.round(maxLeft * pos.xPct)));
+    const top = Math.min(maxTop, Math.max(0, Math.round(maxTop * pos.yPct)));
+    btn.style.left = `${left}px`;
+    btn.style.top = `${top}px`;
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+
+  function clampButtonToViewport(btn) {
+    const rect = btn.getBoundingClientRect();
+    const maxLeft = Math.max(0, window.innerWidth - btn.offsetWidth);
+    const maxTop = Math.max(0, window.innerHeight - btn.offsetHeight);
+    const left = Math.min(maxLeft, Math.max(0, rect.left));
+    const top = Math.min(maxTop, Math.max(0, rect.top));
+    btn.style.left = `${left}px`;
+    btn.style.top = `${top}px`;
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+    saveButtonPosition(btn, left, top);
+  }
+
+  function enableButtonDrag(btn) {
+    let dragging = false;
+    let moved = false;
+    let suppressClick = false;
+    let offsetX = 0;
+    let offsetY = 0;
+    let startX = 0;
+    let startY = 0;
+
+    btn.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      dragging = true;
+      moved = false;
+      btn.classList.add('dragging');
+      const rect = btn.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      startX = e.clientX;
+      startY = e.clientY;
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      if (!moved) {
+        const dx = Math.abs(e.clientX - startX);
+        const dy = Math.abs(e.clientY - startY);
+        if (dx + dy > 4) moved = true;
+      }
+      const maxLeft = Math.max(0, window.innerWidth - btn.offsetWidth);
+      const maxTop = Math.max(0, window.innerHeight - btn.offsetHeight);
+      const left = Math.min(maxLeft, Math.max(0, e.clientX - offsetX));
+      const top = Math.min(maxTop, Math.max(0, e.clientY - offsetY));
+      btn.style.left = `${left}px`;
+      btn.style.top = `${top}px`;
+      btn.style.right = 'auto';
+      btn.style.bottom = 'auto';
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      btn.classList.remove('dragging');
+      const rect = btn.getBoundingClientRect();
+      saveButtonPosition(btn, rect.left, rect.top);
+      if (moved) suppressClick = true;
+    });
+
+    btn.addEventListener('click', (e) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+
+    window.addEventListener('resize', () => {
+      const saved = loadButtonPosition();
+      if (saved) {
+        applyButtonPosition(btn, saved);
+      }
+      clampButtonToViewport(btn);
+    });
   }
 
   function mountButton() {
+    if (window.self !== window.top) return;
     if (document.getElementById(BTN_ID)) return;
+
     const btn = document.createElement('button');
     btn.id = BTN_ID;
     btn.textContent = '+ MemoSpace';
+
+    document.body.appendChild(btn);
+
+    const savedPos = loadButtonPosition();
+    if (savedPos) {
+      applyButtonPosition(btn, savedPos);
+    }
+    clampButtonToViewport(btn);
+    enableButtonDrag(btn);
+
     btn.addEventListener('click', async () => {
-      const track = await getTrackInfo();
-      if (!track || !track.url) {
-        alert('Track page not detected.');
+      if (btn.classList.contains('dragging')) return;
+      const sources = await getTrackSources();
+      if (!sources.current && !sources.playing) {
+        alert('Track page not detected and no now-playing track found.');
         return;
       }
-      openModal(track);
+      openModal(sources);
     });
-    document.body.appendChild(btn);
   }
 
   window.addEventListener('load', () => {
