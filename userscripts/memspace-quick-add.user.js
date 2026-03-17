@@ -49,6 +49,7 @@
       display: inline-flex;
       align-items: center;
       gap: 12px;
+      touch-action: none;
     }
     #${BTN_ID}.dragging { cursor: grabbing; }
     #${BTN_ID} .launcher-logo {
@@ -139,6 +140,7 @@
     #${MODAL_ID} .header-row {
       display:flex; align-items:center; justify-content:space-between;
       gap:10px; margin-bottom: 8px;
+      touch-action: none;
     }
     #${MODAL_ID} .header-row .title { margin: 0; }
     #${MODAL_ID} .source-toggle {
@@ -949,19 +951,23 @@
     let dragging = false;
     let offsetX = 0;
     let offsetY = 0;
+    let activePointerId = null;
 
-    handle.addEventListener('mousedown', (e) => {
+    handle.addEventListener('pointerdown', (e) => {
       const target = e.target;
       if (target && target.closest && target.closest('button, input, textarea, select, a')) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       dragging = true;
+      activePointerId = e.pointerId;
       const rect = card.getBoundingClientRect();
       offsetX = e.clientX - rect.left;
       offsetY = e.clientY - rect.top;
+      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
       e.preventDefault();
     });
 
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
+    window.addEventListener('pointermove', (e) => {
+      if (!dragging || e.pointerId !== activePointerId) return;
       const maxLeft = Math.max(8, window.innerWidth - card.offsetWidth - 8);
       const maxTop = Math.max(8, window.innerHeight - card.offsetHeight - 8);
       const left = Math.min(maxLeft, Math.max(8, e.clientX - offsetX));
@@ -973,11 +979,15 @@
       saveModalPosition(card);
     });
 
-    window.addEventListener('mouseup', () => {
+    const stopDrag = (e) => {
       if (!dragging) return;
+      if (e && e.pointerId !== activePointerId) return;
       dragging = false;
+      activePointerId = null;
       saveModalPosition(card);
-    });
+    };
+    window.addEventListener('pointerup', stopDrag);
+    window.addEventListener('pointercancel', stopDrag);
 
     window.addEventListener('resize', () => {
       applyModalPosition(card);
@@ -1439,23 +1449,26 @@
     let offsetY = 0;
     let startX = 0;
     let startY = 0;
-    btn.addEventListener('mousedown', (e) => {
+    let activePointerId = null;
+    btn.addEventListener('pointerdown', (e) => {
       const target = e.target;
       if (target && target.closest && target.closest('.launcher-action')) return;
-      if (e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       dragging = true;
       moved = false;
+      activePointerId = e.pointerId;
       btn.classList.add('dragging');
       const rect = btn.getBoundingClientRect();
       offsetX = e.clientX - rect.left;
       offsetY = e.clientY - rect.top;
       startX = e.clientX;
       startY = e.clientY;
+      try { btn.setPointerCapture(e.pointerId); } catch (_) {}
       e.preventDefault();
     });
 
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
+    window.addEventListener('pointermove', (e) => {
+      if (!dragging || e.pointerId !== activePointerId) return;
       if (!moved) {
         const dx = Math.abs(e.clientX - startX);
         const dy = Math.abs(e.clientY - startY);
@@ -1471,13 +1484,18 @@
       btn.style.bottom = 'auto';
     });
 
-    window.addEventListener('mouseup', () => {
+    const stopDrag = (e) => {
       if (!dragging) return;
+      if (e && e.pointerId !== activePointerId) return;
       dragging = false;
+      activePointerId = null;
       btn.classList.remove('dragging');
       const rect = btn.getBoundingClientRect();
       saveButtonPosition(btn, rect.left, rect.top);
-    });
+      if (moved) btn.dataset.justDraggedAt = String(Date.now());
+    };
+    window.addEventListener('pointerup', stopDrag);
+    window.addEventListener('pointercancel', stopDrag);
 
     window.addEventListener('resize', () => {
       const saved = loadButtonPosition();
@@ -1518,6 +1536,11 @@
     enableButtonDrag(btn);
 
     musicBtn?.addEventListener('click', async (e) => {
+      const justDraggedAt = Number(btn.dataset.justDraggedAt || '0');
+      if (Date.now() - justDraggedAt < 350) {
+        e.preventDefault();
+        return;
+      }
       if (btn.classList.contains('dragging')) return;
       e.preventDefault();
       const sources = await getTrackSources();
@@ -1529,6 +1552,11 @@
     });
 
     btn.querySelector('#ms-launch-mind')?.addEventListener('click', (e) => {
+      const justDraggedAt = Number(btn.dataset.justDraggedAt || '0');
+      if (Date.now() - justDraggedAt < 350) {
+        e.preventDefault();
+        return;
+      }
       if (btn.classList.contains('dragging')) return;
       e.preventDefault();
       openMindModal();
