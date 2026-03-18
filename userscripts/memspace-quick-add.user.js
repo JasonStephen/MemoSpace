@@ -1614,9 +1614,3 @@
   window.addEventListener('DOMContentLoaded', startMountWatch);
   window.addEventListener('load', startMountWatch);
 })();
-
-
-
-
-
-

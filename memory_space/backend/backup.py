@@ -28,12 +28,27 @@ def _list_backups() -> list[Path]:
     return sorted(BACKUP_DIR.glob(pattern), key=lambda item: item.name, reverse=True)
 
 
-def _remove_with_retry(path: Path, retries: int = 3, delay_seconds: float = 0.25) -> bool:
+def _format_os_error(exc: OSError | None) -> str:
+    if exc is None:
+        return 'none'
+    return (
+        f'type={type(exc).__name__} '
+        f'errno={getattr(exc, "errno", None)} '
+        f'winerror={getattr(exc, "winerror", None)} '
+        f'msg={exc}'
+    )
+
+
+def _remove_with_retry(
+    path: Path,
+    retries: int = 3,
+    delay_seconds: float = 0.25,
+) -> tuple[bool, OSError | None, int]:
     last_error: OSError | None = None
     for attempt in range(retries):
         try:
             path.unlink(missing_ok=True)
-            return True
+            return True, None, attempt + 1
         except OSError as exc:
             last_error = exc
             logger.debug(
@@ -48,14 +63,11 @@ def _remove_with_retry(path: Path, retries: int = 3, delay_seconds: float = 0.25
             time.sleep(delay_seconds * (attempt + 1))
     if last_error is not None:
         logger.debug(
-            'backup remove final failure for %s: errno=%s winerror=%s type=%s msg=%s',
+            'backup remove final failure for %s: %s',
             path,
-            getattr(last_error, 'errno', None),
-            getattr(last_error, 'winerror', None),
-            type(last_error).__name__,
-            last_error,
+            _format_os_error(last_error),
         )
-    return False
+    return False, last_error, retries
 
 
 def _backup_file_debug_info(path: Path) -> str:
@@ -71,6 +83,25 @@ def _backup_file_debug_info(path: Path) -> str:
         )
     except OSError as exc:
         return f'exists={exists} stat_error={type(exc).__name__}:{exc}'
+
+
+def _backup_lock_debug_info() -> str:
+    exists = BACKUP_LOCK_FILE.exists()
+    if not exists:
+        return f'lock_exists={exists}'
+    try:
+        stat = BACKUP_LOCK_FILE.stat()
+    except OSError as exc:
+        return f'lock_exists={exists} lock_stat_error={type(exc).__name__}:{exc}'
+    try:
+        content = BACKUP_LOCK_FILE.read_text(encoding='utf-8').strip()
+        content = content or '<empty>'
+    except OSError as exc:
+        content = f'<read_error:{type(exc).__name__}:{exc}>'
+    return (
+        f'lock_exists={exists} lock_size={stat.st_size} '
+        f'lock_mtime={int(stat.st_mtime)} lock_content="{content}"'
+    )
 
 
 def _try_acquire_backup_lock() -> tuple[int | None, bool]:
@@ -106,12 +137,23 @@ def rotate_backups(max_backups: int) -> None:
     backups = _list_backups()
     # Keep only the latest backups and remove all remaining old files.
     for old_file in backups[keep:]:
-        removed = _remove_with_retry(old_file)
+        removed, last_error, attempts = _remove_with_retry(old_file)
         if not removed:
             logger.warning(
-                'failed to remove old backup %s: file is still in use (%s)',
+                (
+                    'failed to remove old backup %s: '
+                    'pid=%s thread=%s keep=%s total_backups=%s '
+                    'attempts=%s file_info=(%s) error=(%s) lock_info=(%s)'
+                ),
                 old_file,
+                os.getpid(),
+                threading.current_thread().name,
+                keep,
+                len(backups),
+                attempts,
                 _backup_file_debug_info(old_file),
+                _format_os_error(last_error),
+                _backup_lock_debug_info(),
             )
 
 
