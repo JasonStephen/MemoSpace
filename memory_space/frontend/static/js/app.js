@@ -151,6 +151,7 @@ const state = {
   metadataResolveCache: new Map(),
   metadataResolvePromiseCache: new Map(),
   neteaseResolveCache: new Map(),
+  formDraft: null,
 };
 let currentMarkdownEditor = null;
 let statusPollTimer = null;
@@ -162,6 +163,8 @@ let autoRowsRecalcRaf1 = 0;
 let autoRowsRecalcRaf2 = 0;
 let autoRowsRecalcTimer1 = 0;
 let autoRowsRecalcTimer2 = 0;
+let activeFormContext = null;
+let activeFormDirty = false;
 const colorSchemeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 
 const detailPanel = document.getElementById('detailPanel');
@@ -1564,7 +1567,7 @@ function getLongDescValue() {
   return plain.toString().trim();
 }
 
-function setupMarkdownEditor() {
+function setupMarkdownEditor(onChange = null) {
   if (currentMarkdownEditor && typeof currentMarkdownEditor.toTextArea === 'function') {
     currentMarkdownEditor.toTextArea();
     currentMarkdownEditor = null;
@@ -1575,7 +1578,12 @@ function setupMarkdownEditor() {
 
   const bindFallbackPreview = () => {
     renderMarkdownLivePreview(longDescEl.value);
-    longDescEl.addEventListener('input', () => renderMarkdownLivePreview(longDescEl.value));
+    longDescEl.addEventListener('input', () => {
+      renderMarkdownLivePreview(longDescEl.value);
+      if (typeof onChange === 'function') {
+        onChange();
+      }
+    });
   };
 
   if (typeof window.EasyMDE !== 'function') {
@@ -1626,6 +1634,9 @@ function setupMarkdownEditor() {
   renderMarkdownLivePreview(currentMarkdownEditor.value());
   currentMarkdownEditor.codemirror.on('change', () => {
     renderMarkdownLivePreview(currentMarkdownEditor.value());
+    if (typeof onChange === 'function') {
+      onChange();
+    }
   });
 }
 
@@ -1778,13 +1789,69 @@ function collectFormColor() {
   return normaliseHexColor(customHex) || normaliseHexColor(customPicker) || getDefaultColor();
 }
 
+function getFormDraftKey(mode, item = null) {
+  const idPart = item?.id ? String(item.id) : 'create';
+  return `${pageType}:${mode}:${idPart}`;
+}
+
+function getFormInitialData(mode, item = null) {
+  const key = getFormDraftKey(mode, item);
+  if (state.formDraft?.key === key && state.formDraft?.data) {
+    return state.formDraft.data;
+  }
+  return item;
+}
+
+function saveCurrentFormDraft(mode, item = null) {
+  if (!formModalOverlay.classList.contains('open')) return;
+  const formData = new FormData(memoryForm);
+  const draftData = {
+    title: (formData.get('title') || '').toString().trim(),
+    memory_time: (formData.get('memory_time') || '').toString().trim(),
+    tags: parseTags((formData.get('tags') || '').toString()),
+    color: collectFormColor(),
+    short_desc: (formData.get('short_desc') || '').toString().trim(),
+    long_desc: getLongDescValue(),
+  };
+  if (pageType === 'music') {
+    draftData.icon_url = (formData.get('icon_url') || '').toString().trim();
+    draftData.artist = (formData.get('artist') || '').toString().trim();
+    draftData.links = collectFormLinks();
+  }
+  state.formDraft = {
+    key: getFormDraftKey(mode, item),
+    data: draftData,
+  };
+}
+
+function saveCurrentFormDraftFromActiveContext() {
+  if (!activeFormContext) return;
+  saveCurrentFormDraft(activeFormContext.mode, activeFormContext.item);
+}
+
+function markActiveFormDirty() {
+  if (!activeFormContext) return;
+  activeFormDirty = true;
+  saveCurrentFormDraftFromActiveContext();
+}
+
+function clearFormDraft(mode, item = null) {
+  const key = getFormDraftKey(mode, item);
+  if (state.formDraft?.key !== key) return;
+  state.formDraft = null;
+}
+
 function openFormModal(mode, item = null) {
   if (!isEditableItem(item)) {
     return;
   }
+  const initialData = getFormInitialData(mode, item);
+  const draftKey = getFormDraftKey(mode, item);
   state.mode = mode;
+  activeFormContext = { mode, item };
+  activeFormDirty = state.formDraft?.key === draftKey;
   formModalTitle.textContent = mode === 'create' ? t('form.create', 'Add') : t('form.edit', 'Edit');
-  memoryForm.innerHTML = getFormHtml(item);
+  memoryForm.innerHTML = getFormHtml(initialData);
   formModalOverlay.classList.add('open');
   formModalOverlay.setAttribute('aria-hidden', 'false');
 
@@ -1794,7 +1861,7 @@ function openFormModal(mode, item = null) {
 
   setupLinkEditor();
   setupColorEditor();
-  setupMarkdownEditor();
+  setupMarkdownEditor(markActiveFormDirty);
 
   memoryForm.onsubmit = async (event) => {
     event.preventDefault();
@@ -1841,7 +1908,7 @@ function openFormModal(mode, item = null) {
       return;
     }
 
-    closeFormModal();
+    closeFormModal({ clearDraft: true });
     await loadItems();
 
     if (mode === 'edit' && targetId) {
@@ -1854,11 +1921,20 @@ function openFormModal(mode, item = null) {
   };
 }
 
-function closeFormModal() {
+function closeFormModal(options = {}) {
+  const clearDraftOnClose = !!options.clearDraft;
+  if (!clearDraftOnClose && activeFormDirty) {
+    saveCurrentFormDraftFromActiveContext();
+  }
   if (currentMarkdownEditor && typeof currentMarkdownEditor.toTextArea === 'function') {
     currentMarkdownEditor.toTextArea();
     currentMarkdownEditor = null;
   }
+  if (clearDraftOnClose && activeFormContext) {
+    clearFormDraft(activeFormContext.mode, activeFormContext.item);
+  }
+  activeFormContext = null;
+  activeFormDirty = false;
   formModalOverlay.classList.remove('open');
   formModalOverlay.setAttribute('aria-hidden', 'true');
 }
@@ -2698,6 +2774,8 @@ addBtn.addEventListener('click', () => {
   if (pageMode === 'readonly') return;
   openFormModal('create');
 });
+memoryForm.addEventListener('input', markActiveFormDirty);
+memoryForm.addEventListener('change', markActiveFormDirty);
 panelCloseBtn.addEventListener('click', closeDetail);
 confirmDeleteBtn.addEventListener('click', confirmDelete);
 
@@ -2724,6 +2802,11 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('resize', handlePaginationResize);
+window.addEventListener('beforeunload', (event) => {
+  if (!state.formDraft) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
 
 async function init() {
   initThemeMode();
